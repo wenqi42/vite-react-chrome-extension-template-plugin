@@ -1,8 +1,10 @@
-export default function App() {
+export default function App({
+  title = 'Your extension is ready.',
+}: { title?: string } = {}) {
   return (
     <main className="app">
       <span className="eyebrow">Vite + React + Chrome</span>
-      <h1>Your extension is ready.</h1>
+      <h1>{title}</h1>
       <p>
         Edit <code>src/App.tsx</code> and load <code>dist</code> in Chrome.
       </p>

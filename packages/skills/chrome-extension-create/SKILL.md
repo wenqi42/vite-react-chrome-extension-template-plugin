@@ -47,7 +47,7 @@ If global writes are unavailable, offer direct `node <repo>/packages/create-chro
 
 - Run typecheck and build in the generated project.
 - Run lint and format:check only if their tools were selected.
-- Confirm `src/App.tsx`, `src/background.ts`, `vite.config.ts`, `@types/chrome`, and selected/absent configuration files.
+- Confirm `src/App.tsx`, `src/popup/main.tsx`, `src/options/main.tsx`, `src/background.ts`, `vite.config.ts`, `@types/chrome`, and selected/absent configuration files.
 - Inspect manifest references and generated worker. Load unpacked `dist` in Chrome for runtime validation when possible.
 - Report location, selections, exact checks, global links left installed and Chrome verification limits.
 - Do not call a successful HTTP preview a successful extension runtime test.

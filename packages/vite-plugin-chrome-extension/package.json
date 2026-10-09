@@ -21,7 +21,8 @@
   ],
   "scripts": {
     "build": "node -e \"console.log('plugin is distributed as source ESM')\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.js"
   },
   "license": "MIT"
 }

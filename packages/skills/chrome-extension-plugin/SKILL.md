@@ -20,13 +20,22 @@ Add `@types/chrome` as a dev dependency and merge `"chrome"` into tsconfig types
 
 Add `chromeExtension({ manifest: { name: 'My Extension', version: '0.1.0' }, background: 'background.js' })` to plugins alongside `react()`.
 
+By convention, create page entries at `modules/<page>/index.html`. The plugin discovers these entries and builds them independently:
+
+- `popup` → `action.default_popup`
+- `options` → `options_ui.page`
+- `sidepanel` → `side_panel.default_path`
+- `devtools` → `devtools_page`
+
+Other names are built as pages but require an explicit `manifest` mapping. Use `pages: false` to disable discovery or `pages: { popup: 'custom/popup.html' }` for explicit entries.
+
 For TS background, merge this shape into Vite config (relative inputs assume project-root working directory):
 
 ```ts
 base: './',
 build: {
   rollupOptions: {
-    input: { popup: 'index.html', background: 'src/background.ts' },
+    input: { background: 'src/background.ts' },
     output: {
       entryFileNames: chunk =>
         chunk.name === 'background' ? 'background.js' : 'assets/[name]-[hash].js',
@@ -39,13 +48,15 @@ Do not overwrite existing multi-page entries. Plain JS can instead use `public/b
 
 ## API truth and pitfalls
 
-- `manifest`: overrides default MV3 metadata. Plugin validation is limited to MV3 and nonempty name/version.
-- `popup`: output-relative HTML path, defaults to index.html. An alternate page must actually be built.
+- `manifest`: final authority over convention and shorthand config. Objects deep-merge; arrays are replaced as a whole.
+- `pages`: auto-discovered page entries, explicit entry map, or `false`.
+- `pageRoot`: custom convention directory, default `modules`.
+- `popup`: output-relative HTML path. The convention uses `popup/index.html`; an alternate page must actually be built.
 - `background`: output-relative JS path, forces module worker type. Does not compile TS by itself.
 - `contentScripts`: replaces the manifest array. Does not create, compile or hash-rewrite scripts.
 - Plain content scripts cannot contain top-level ESM imports; use static compatible JS or an independently configured compatible bundle.
 - `outDir` currently only affects logging. Set Vite `build.outDir` for real output.
-- No built-in extension HMR, Chrome API mock, automatic options page creation or full manifest schema validation.
+- No built-in extension HMR, Chrome API mock, automatic background/content-script compilation or full manifest schema validation.
 - Use least permissions. Keep secrets and remotely executed code out of the extension.
 
 ## Acceptance

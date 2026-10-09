@@ -10,7 +10,7 @@ Maintain the plugin, CLI and TS template. Read current source before relying on 
 - `packages/vite-plugin-chrome-extension/index.js`: build-only manifest emission.
 - `packages/vite-plugin-chrome-extension/index.d.ts`: public API declarations; update with API changes.
 - `packages/create-chrome-extension/bin/create.js`: prompts, validation, copy and optional tools.
-- `packages/create-chrome-extension/template/`: generated TS application, not a workspace.
+- `packages/create-chrome-extension/template/`: generated TS application with `modules/*/index.html` page routes, not a workspace.
 - `packages/create-chrome-extension/optional/`: conditional ESLint/Prettier files.
 - `packages/create-chrome-extension/test/`: Node test runner CLI tests.
 - `examples/basic-extension/`: minimal JS fixture, not the default TS template.
@@ -28,8 +28,8 @@ Maintain the plugin, CLI and TS template. Read current source before relying on 
 
 ## Known implementation limits / 真实边界
 
-Plugin emits manifest only. Background/popup options reference built files, not source compilation tasks.
-Template Rollup configuration compiles TS background separately.
+Plugin discovers `modules/*/index.html` and adds those pages as Vite inputs. It emits the Manifest; background/content script compilation remains an explicit project concern.
+Template Rollup configuration compiles TS background separately and uses page routes for popup/options.
 `contentScripts` only assigns manifest data. Plain content scripts require non-ESM-compatible outputs.
 `outDir` plugin option currently only changes the log; actual output is Vite `build.outDir`.
 Validation only checks MV3 and nonempty name/version. Do not describe this as complete Chrome validation.

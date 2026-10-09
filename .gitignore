@@ -3,3 +3,33 @@ dist
 .DS_Store
 *.log
 .playwright-mcp/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Test and coverage output
+coverage
+.nyc_output
+
+# Build and tool caches
+.cache
+.vite
+.turbo
+*.tsbuildinfo
+
+# Package-manager debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor and OS metadata
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+*.swp
+*.swo
+*.tmp

@@ -85,7 +85,7 @@ npm run build
 
 ### 模板语言与开发工具
 
-默认模板使用 TypeScript：React popup 为 `src/main.tsx`，后台为 `src/background.ts`，配置为 `vite.config.ts`。
+默认模板使用 TypeScript：页面入口为 `src/popup/main.tsx` 和 `src/options/main.tsx`，后台为 `src/background.ts`，配置为 `vite.config.ts`。
 后台通过 Rollup 单独编译为 `dist/background.js`；`npm run build` 会先进行类型检查。
 `@types/chrome` 已在 `devDependencies` 中默认安装，且 `tsconfig.json` 显式启用 `chrome` 类型。
 
@@ -104,26 +104,36 @@ npm install -D @vite-react-chrome-extension/plugin
 
 ```js
 // vite.config.js
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import chromeExtension from '@vite-react-chrome-extension/plugin'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import chromeExtension from "@vite-react-chrome-extension/plugin";
 
 export default defineConfig({
   plugins: [
     react(),
     chromeExtension({
       manifest: {
-        name: 'My Extension',
-        description: 'A React Chrome extension',
-        permissions: ['storage', 'activeTab']
+        name: "My Extension",
+        description: "A React Chrome extension",
+        permissions: ["storage", "activeTab"],
       },
-      background: 'background.js'
-    })
-  ]
-})
+      background: "background.js",
+    }),
+  ],
+});
 ```
 
-插件在 Vite 的 `generateBundle` 阶段生成 `manifest.json`。此处的 `background.js` 必须存在于最终产物中：简单 JS 可以放到 `public/background.js` 原样复制；TypeScript 必须像默认模板一样显式配置 Rollup 入口。
+插件在 Vite 的 `generateBundle` 阶段生成 `manifest.json`，并自动发现 `modules/*/index.html` 作为页面入口。默认模板中的 `modules/popup` 和 `modules/options` 会分别构建为 `dist/popup/index.html` 与 `dist/options/index.html`。
+此处的 `background.js` 必须存在于最终产物中：简单 JS 可以放到 `public/background.js` 原样复制；TypeScript 必须像默认模板一样显式配置 Rollup 入口。
+
+约定页面名到 Manifest 的映射：
+
+- `modules/popup/index.html` → `action.default_popup`
+- `modules/options/index.html` → `options_ui.page`
+- `modules/sidepanel/index.html` → `side_panel.default_path`
+- `modules/devtools/index.html` → `devtools_page`
+
+其他 `modules/<name>/index.html` 也会作为独立页面入口构建，但需要通过 `manifest` 显式配置它在 Chrome 中的用途。
 
 ### TypeScript background 配置
 
@@ -133,7 +143,7 @@ export default defineConfig({
 base: './',
 build: {
   rollupOptions: {
-    input: { popup: 'index.html', background: 'src/background.ts' },
+    input: { background: 'src/background.ts' },
     output: {
       entryFileNames: (chunk) =>
         chunk.name === 'background' ? 'background.js' : 'assets/[name]-[hash].js',
@@ -147,18 +157,23 @@ build: {
 
 ### Plugin 配置与当前边界
 
-| 选项 | 用途 |
-| --- | --- |
-| `manifest` | 合并 Manifest 字段，默认 MV3、版本 `0.1.0`、popup `index.html` |
-| `popup` | 覆盖 `action.default_popup`，路径相对于扩展输出根目录 |
-| `background` | 设置输出 JS 路径及 `background.type: 'module'` |
-| `contentScripts` | 覆盖 `content_scripts` 数组，不负责编译脚本 |
-| `outDir` | 当前只影响日志显示，真正输出目录请配置 Vite `build.outDir` |
+| 选项             | 用途                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| `manifest`       | 最终优先级最高，深度合并 Manifest 字段；对象递归合并，数组整体替换                    |
+| `pages`          | 默认自动发现 `modules/*/index.html`；传对象可显式指定入口，传 `false` 可关闭          |
+| `pageRoot`       | 修改约定目录，默认为 `modules`                                                        |
+| `popup`          | shorthand，覆盖 `action.default_popup`，但会被 `manifest.action.default_popup` 再覆盖 |
+| `background`     | 设置输出 JS 路径及 `background.type: 'module'`                                        |
+| `contentScripts` | 覆盖 `content_scripts` 数组，不负责编译脚本                                           |
+| `outDir`         | 当前只影响日志显示，真正输出目录请配置 Vite `build.outDir`                            |
+
+合并优先级从低到高为：约定页面生成值 → `popup` / `background` / `contentScripts` shorthand → `manifest`。
+对象字段递归合并，数组整体使用后者替换；例如传入 `manifest.action.default_popup` 会覆盖 `modules/popup/index.html` 的默认映射。
 
 重要限制：
 
 - 插件只在 build 执行；`vite dev` 是普通网页预览，不提供扩展自动重载或 Chrome API mock。
-- 不自动发现/打包 background、content scripts 或 options 页面，不自动改写它们的 hash 路径。
+- 自动发现和打包页面入口，但不自动发现/打包 background、content scripts；它们仍需使用 `public/` 或自定义 Rollup 入口。
 - Manifest 检查仅覆盖 MV3、非空 name/version，不是完整 Chrome schema 校验，也不检查所有引用文件是否存在。
 - Content scripts 必须引用实际生成的文件；普通 content script 不是 ESM，不能直接指向 TS 或包含顶层 import 的 Vite chunk。简单场景可使用 `public/content.js`，复杂场景需独立打包为兼容脚本。
 - 使用最小权限；不要把密钥、远程执行脚本或不必要的 host permissions 放入扩展。
@@ -248,7 +263,7 @@ The CLI rejects non-empty targets, invalid names, unknown flags and conflicting 
 
 ### Generated project
 
-- `src/App.tsx` / `src/main.tsx`: React popup.
+- `src/App.tsx`、`src/popup/main.tsx`、`src/options/main.tsx`: React page entries.
 - `src/background.ts`: separately compiled module service worker.
 - `vite.config.ts`: explicit popup and background Rollup entries.
 - `@types/chrome`: default development dependency, enabled in tsconfig.
@@ -264,17 +279,21 @@ See the full configuration examples in the Chinese section above and `packages/c
 
 The `background` option is an **output path**, not a source compiler entry. Either place plain JS at `public/background.js` or configure `src/background.ts` as a Rollup input with a stable `background.js` output. Do not use both.
 
+Page entries follow `modules/<page>/index.html`; `popup`, `options`, `sidepanel` and `devtools` receive their corresponding Manifest V3 fields. Other page names are built but require an explicit manifest mapping.
+
 Options:
 
-- `manifest`: manifest overrides; defaults to MV3, version `0.1.0`, popup `index.html`.
+- `manifest`: manifest overrides; defaults to MV3, version `0.1.0`, and uses `modules/popup/index.html` when that route exists.
 - `popup`: overrides `action.default_popup`.
 - `background`: sets `service_worker` and `type: 'module'`.
 - `contentScripts`: assigns the manifest array; does not compile scripts.
 - `outDir`: currently affects logging only. Use Vite's `build.outDir` for actual output.
 
+Merge precedence is convention-generated values, then shorthand options, then `manifest`. Objects are recursively merged and arrays are replaced as whole values, so explicit user manifest data always wins.
+
 ### Limitations and validation
 
-The plugin runs only during builds. It does not provide extension HMR, API mocks, automatic script/page discovery, hash rewriting, or full manifest/reference validation.
+The plugin runs only during builds. It does not provide extension HMR, API mocks, automatic background/content-script discovery, hash rewriting, or full manifest/reference validation.
 Plain content scripts cannot use top-level ESM imports: use a compatible plain JS file from `public/`, or a separate compatible bundle. Do not reference raw TS files in the manifest.
 Grant only required permissions and never embed secrets.
 
