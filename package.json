@@ -1,0 +1,21 @@
+{
+  "name": "vite-react-template-chrome-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Vite plugin and create command for building React Chrome extensions.",
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run build && npm run typecheck && npm run test --workspace create-vite-react-chrome-extension",
+    "create:smoke": "npm run test --workspace create-vite-react-chrome-extension",
+    "build:example": "npm run build --workspace @example/basic-extension"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

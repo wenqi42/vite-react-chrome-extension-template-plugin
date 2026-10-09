@@ -1,0 +1,20 @@
+{
+  "name": "create-vite-react-chrome-extension",
+  "version": "0.1.0",
+  "description": "Create a React Chrome extension powered by Vite.",
+  "type": "module",
+  "bin": {
+    "create-vite-react-chrome-extension": "./bin/create.js"
+  },
+  "files": [
+    "bin",
+    "template",
+    "optional"
+  ],
+  "scripts": {
+    "build": "node -e \"console.log('CLI is distributed as source ESM')\"",
+    "typecheck": "node --check bin/create.js",
+    "test": "node --test test/*.test.js"
+  },
+  "license": "MIT"
+}
