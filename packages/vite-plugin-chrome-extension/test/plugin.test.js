@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import chromeExtension, { deepMerge, pagesToManifest } from "../index.js";
+import chromeExtension, {
+  collectPermissions,
+  deepMerge,
+  pagesToManifest,
+} from "../index.js";
 
 test("deepMerge recursively merges objects and replaces arrays", () => {
   assert.deepEqual(
@@ -57,6 +61,11 @@ test("explicit manifest config wins over convention and shorthand config", () =>
     root: "/workspace",
     build: { outDir: "dist", rollupOptions: {} },
   });
+  plugin.transform.call(
+    { warn: () => {} },
+    "chrome.tabs.query({ active: true });",
+    "/workspace/src/main.ts",
+  );
   plugin.generateBundle.call({
     emitFile: (asset) => {
       output = JSON.parse(asset.source);
@@ -69,4 +78,65 @@ test("explicit manifest config wins over convention and shorthand config", () =>
     { matches: ["https://user.example/*"], js: ["user.js"] },
   ]);
   assert.deepEqual(output.permissions, ["storage"]);
+});
+
+test("API usage adds mapped permissions when manifest.permissions is omitted", () => {
+  const plugin = chromeExtension({
+    manifest: { name: "Auto Permission Extension", version: "1.0.0" },
+  });
+  let output;
+  plugin.configResolved({
+    root: "/workspace",
+    build: { outDir: "dist", rollupOptions: {} },
+  });
+  plugin.transform.call(
+    { warn: () => {} },
+    "chrome.tabs.query({ active: true });",
+    "/workspace/src/main.ts",
+  );
+  plugin.generateBundle.call({
+    emitFile: (asset) => {
+      output = JSON.parse(asset.source);
+    },
+    warn: () => {},
+  });
+  assert.deepEqual(output.permissions, ["tabs"]);
+});
+
+test("collectPermissions uses AST member expressions instead of string matching", () => {
+  const result = collectPermissions(
+    `
+      const text = "chrome.tabs should not count";
+      chrome.tabs.query({ active: true });
+      browser.storage.local.set({ ready: true });
+      chrome["history"].search({ text: "x" });
+    `,
+    "/workspace/src/popup/main.tsx",
+  );
+  assert.deepEqual([...result.permissions], ["tabs"]);
+  assert.deepEqual(result.unknownNamespaces, []);
+});
+
+test("autoPermissions can be disabled", () => {
+  const plugin = chromeExtension({
+    autoPermissions: false,
+    manifest: { name: "Manual Permission Extension", version: "1.0.0" },
+  });
+  let output;
+  plugin.configResolved({
+    root: "/workspace",
+    build: { outDir: "dist", rollupOptions: {} },
+  });
+  plugin.transform.call(
+    { warn: () => {} },
+    "chrome.tabs.query({ active: true });",
+    "/workspace/src/main.ts",
+  );
+  plugin.generateBundle.call({
+    emitFile: (asset) => {
+      output = JSON.parse(asset.source);
+    },
+    warn: () => {},
+  });
+  assert.equal("permissions" in output, false);
 });

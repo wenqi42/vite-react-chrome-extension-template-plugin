@@ -170,6 +170,50 @@ build: {
 合并优先级从低到高为：约定页面生成值 → `popup` / `background` / `contentScripts` shorthand → `manifest`。
 对象字段递归合并，数组整体使用后者替换；例如传入 `manifest.action.default_popup` 会覆盖 `modules/popup/index.html` 的默认映射。
 
+### API 权限自动推导
+
+构建期间 plugin 会使用 Babel AST 解析项目源码中的 `chrome.*` 和 `browser.*` 成员访问，不使用字符串搜索。
+例如：
+
+```ts
+chrome.tabs.query({ active: true });
+chrome.history.search({ text: "vite" });
+```
+
+会自动推导：
+
+```json
+{
+  "permissions": ["history", "tabs"]
+}
+```
+
+当前映射数据位于 `packages/vite-plugin-chrome-extension/chrome-permission-map.json`。
+固定生成脚本为：
+
+```bash
+npm run generate:permissions
+```
+
+脚本从 Chrome 官方 API 目录抓取 namespace 页面，提取文档中的 permission 描述，并以仓库内维护的 fallback map 兜底。
+生成结果应该经过人工 review 后再提交，因为 Chrome API 文档里的权限描述可能包含版本、平台、企业策略和上下文限制。
+
+自动推导的边界：
+
+- `chrome.action`、`chrome.runtime`、`chrome.storage` 等不需要声明权限的 API 不会添加无意义权限。
+- `chrome.scripting` 只能推导 `scripting`；目标页面的 host permissions、`activeTab` 等无法从 API 调用安全决定，需要用户配置。
+- `tabs`、`webRequest` 等 API 可能还依赖 host permissions，plugin 不会猜测 URL 范围。
+- 未知 namespace 会产生构建 warning，不会自动生成危险权限。
+- 如果用户显式传入 `manifest.permissions`，该数组视为最终配置，自动推导不会覆盖它；没有显式传入时，才会在已有权限上追加推导结果。
+
+如需完全关闭自动推导：
+
+```ts
+chromeExtension({
+  autoPermissions: false,
+});
+```
+
 重要限制：
 
 - 插件只在 build 执行；`vite dev` 是普通网页预览，不提供扩展自动重载或 Chrome API mock。
@@ -281,15 +325,19 @@ The `background` option is an **output path**, not a source compiler entry. Eith
 
 Page entries follow `modules/<page>/index.html`; `popup`, `options`, `sidepanel` and `devtools` receive their corresponding Manifest V3 fields. Other page names are built but require an explicit manifest mapping.
 
+During build, the plugin parses `chrome.*` and `browser.*` member expressions with Babel AST and appends permissions from the checked-in API map. It does not use substring matching.
+
 Options:
 
 - `manifest`: manifest overrides; defaults to MV3, version `0.1.0`, and uses `modules/popup/index.html` when that route exists.
 - `popup`: overrides `action.default_popup`.
 - `background`: sets `service_worker` and `type: 'module'`.
 - `contentScripts`: assigns the manifest array; does not compile scripts.
+- `autoPermissions`: enables AST-based permission inference, default `true`.
 - `outDir`: currently affects logging only. Use Vite's `build.outDir` for actual output.
 
 Merge precedence is convention-generated values, then shorthand options, then `manifest`. Objects are recursively merged and arrays are replaced as whole values, so explicit user manifest data always wins.
+An explicit `manifest.permissions` array is final; host permissions and context-dependent requirements remain manual.
 
 ### Limitations and validation
 

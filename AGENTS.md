@@ -8,6 +8,8 @@ Maintain the plugin, CLI and TS template. Read current source before relying on 
 ## Ownership / 文件职责
 
 - `packages/vite-plugin-chrome-extension/index.js`: build-only manifest emission.
+- `packages/vite-plugin-chrome-extension/chrome-permission-map.json`: reviewed API namespace → permission data.
+- `scripts/generate-chrome-permission-map.mjs`: official-doc fetcher and map generator.
 - `packages/vite-plugin-chrome-extension/index.d.ts`: public API declarations; update with API changes.
 - `packages/create-chrome-extension/bin/create.js`: prompts, validation, copy and optional tools.
 - `packages/create-chrome-extension/template/`: generated TS application with `modules/*/index.html` page routes, not a workspace.
@@ -29,6 +31,7 @@ Maintain the plugin, CLI and TS template. Read current source before relying on 
 ## Known implementation limits / 真实边界
 
 Plugin discovers `modules/*/index.html` and adds those pages as Vite inputs. It emits the Manifest; background/content script compilation remains an explicit project concern.
+Plugin uses Babel AST member-expression analysis for `chrome.*` / `browser.*` permission inference. Never replace it with substring matching. Unknown APIs warn; host permissions remain manual.
 Template Rollup configuration compiles TS background separately and uses page routes for popup/options.
 `contentScripts` only assigns manifest data. Plain content scripts require non-ESM-compatible outputs.
 `outDir` plugin option currently only changes the log; actual output is Vite `build.outDir`.
@@ -48,6 +51,7 @@ Report exactly what ran, failures, test directory, browser verification limits a
 ## Docs and skills / 文档同步
 
 Keep Chinese and English README instructions aligned with current code.
+When API permissions change, update the generator/fallback map, tests, README boundaries and the package files list together.
 Update relevant skill when CLI flags or plugin behavior changes.
 Use lowercase kebab-case names and valid YAML frontmatter for skills.
 Read `packages/skills/chrome-extension-create/SKILL.md` for scaffolding and `packages/skills/chrome-extension-plugin/SKILL.md` for integration.

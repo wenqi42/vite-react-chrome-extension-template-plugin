@@ -15,9 +15,13 @@
   "peerDependencies": {
     "vite": "^5.0.0 || ^6.0.0 || ^7.0.0"
   },
+  "dependencies": {
+    "@babel/parser": "^7.28.4"
+  },
   "files": [
     "index.js",
-    "index.d.ts"
+    "index.d.ts",
+    "chrome-permission-map.json"
   ],
   "scripts": {
     "build": "node -e \"console.log('plugin is distributed as source ESM')\"",

@@ -1,5 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
+import { parse } from "@babel/parser";
+
+const PERMISSION_MAP = JSON.parse(
+  fs.readFileSync(
+    new URL("./chrome-permission-map.json", import.meta.url),
+    "utf8",
+  ),
+).apis;
 
 const DEFAULT_MANIFEST = {
   manifest_version: 3,
@@ -56,7 +64,10 @@ function discoverPages(root, pageRoot = "modules") {
       .filter((entry) => entry.isDirectory())
       .map((entry) => path.join(directory, entry.name, "index.html"))
       .filter((file) => fs.existsSync(file))
-      .map((file) => [pageNameFromEntry(path.relative(root, file), pageRoot), file]),
+      .map((file) => [
+        pageNameFromEntry(path.relative(root, file), pageRoot),
+        file,
+      ]),
   );
 }
 
@@ -77,6 +88,59 @@ function pageInputEntries(pages) {
   return Object.fromEntries(
     Object.entries(pages).map(([name, entry]) => [`${name}/index`, entry]),
   );
+}
+
+function memberChain(node) {
+  if (node?.type === "Identifier") return [node.name];
+  if (
+    (node?.type === "MemberExpression" ||
+      node?.type === "OptionalMemberExpression") &&
+    !node.computed &&
+    node.property?.type === "Identifier"
+  ) {
+    const objectChain = memberChain(node.object);
+    return objectChain ? [...objectChain, node.property.name] : null;
+  }
+  return null;
+}
+
+function collectPermissions(code, id) {
+  const plugins = ["topLevelAwait"];
+  if (/\.(?:ts|tsx)$/.test(id)) plugins.push("typescript");
+  if (/\.(?:jsx|tsx)$/.test(id)) plugins.push("jsx");
+  const ast = parse(code, { sourceType: "unambiguous", plugins });
+  const permissions = new Set();
+  const namespaces = new Set();
+  const visit = (node) => {
+    if (!node || typeof node !== "object") return;
+    if (
+      node.type === "MemberExpression" ||
+      node.type === "OptionalMemberExpression"
+    ) {
+      const chain = memberChain(node);
+      if (chain?.[0] === "chrome" || chain?.[0] === "browser") {
+        const namespace = chain[1];
+        if (namespace) {
+          namespaces.add(namespace);
+          for (const permission of PERMISSION_MAP[namespace] || []) {
+            permissions.add(permission);
+          }
+        }
+      }
+    }
+    for (const [key, value] of Object.entries(node)) {
+      if (key === "loc" || key === "start" || key === "end") continue;
+      if (Array.isArray(value)) value.forEach(visit);
+      else visit(value);
+    }
+  };
+  visit(ast);
+  return {
+    permissions,
+    unknownNamespaces: [...namespaces].filter(
+      (name) => !(name in PERMISSION_MAP),
+    ),
+  };
 }
 
 function pagesToManifest(pages) {
@@ -118,10 +182,35 @@ function validateManifest(manifest) {
 export default function chromeExtension(options = {}) {
   let resolvedConfig;
   let pageEntries = {};
+  const usedPermissions = new Set();
+  const unknownNamespaces = new Set();
 
   return {
     name: "vite-plugin-chrome-extension",
     apply: "build",
+    transform(code, id) {
+      if (options.autoPermissions === false) return null;
+      if (
+        id.includes("/node_modules/") ||
+        !/\.(?:m?[jt]sx?|vue|svelte)$/.test(id)
+      ) {
+        return null;
+      }
+      try {
+        const result = collectPermissions(code, id);
+        result.permissions.forEach((permission) =>
+          usedPermissions.add(permission),
+        );
+        result.unknownNamespaces.forEach((namespace) =>
+          unknownNamespaces.add(namespace),
+        );
+      } catch (error) {
+        this.warn(
+          `[chrome-extension] AST permission analysis skipped ${id}: ${error.message}`,
+        );
+      }
+      return null;
+    },
     config(userConfig) {
       const root = userConfig.root || process.cwd();
       pageEntries = normalizePages(root, options.pages, options.pageRoot);
@@ -180,6 +269,25 @@ export default function chromeExtension(options = {}) {
         deepMerge(autoManifest, shortcutManifest),
         options.manifest || {},
       );
+      const shouldInferPermissions = !Object.prototype.hasOwnProperty.call(
+        options.manifest || {},
+        "permissions",
+      );
+      if (shouldInferPermissions && usedPermissions.size > 0) {
+        generatedManifest.permissions = [
+          ...new Set([
+            ...(generatedManifest.permissions || []),
+            ...usedPermissions,
+          ]),
+        ];
+      }
+      if (unknownNamespaces.size > 0) {
+        this.warn(
+          `[chrome-extension] No permission mapping found for API namespaces: ${[
+            ...unknownNamespaces,
+          ].join(", ")}. Add required permissions manually.`,
+        );
+      }
       if (
         generatedManifest.icons &&
         Object.keys(generatedManifest.icons).length === 0
@@ -200,4 +308,10 @@ export default function chromeExtension(options = {}) {
   };
 }
 
-export { DEFAULT_MANIFEST, deepMerge, discoverPages, pagesToManifest };
+export {
+  DEFAULT_MANIFEST,
+  collectPermissions,
+  deepMerge,
+  discoverPages,
+  pagesToManifest,
+};

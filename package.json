@@ -12,7 +12,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run build && npm run typecheck && npm run test --workspace create-vite-react-chrome-extension && npm run test --workspace @vite-react-chrome-extension/plugin",
     "create:smoke": "npm run test --workspace create-vite-react-chrome-extension",
-    "build:example": "npm run build --workspace @example/basic-extension"
+    "build:example": "npm run build --workspace @example/basic-extension",
+    "generate:permissions": "node scripts/generate-chrome-permission-map.mjs"
   },
   "engines": {
     "node": ">=18"

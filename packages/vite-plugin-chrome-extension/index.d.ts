@@ -7,6 +7,7 @@ export interface ChromeExtensionOptions {
   background?: string;
   popup?: string;
   contentScripts?: Array<Record<string, unknown>>;
+  autoPermissions?: boolean;
   outDir?: string;
 }
 
@@ -25,3 +26,7 @@ export function discoverPages(
 export function pagesToManifest(
   pages: Record<string, string>,
 ): Record<string, unknown>;
+export function collectPermissions(
+  code: string,
+  id: string,
+): { permissions: Set<string>; unknownNamespaces: string[] };

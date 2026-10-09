@@ -18,6 +18,8 @@ For unpublished code use README's npm link procedure. Never assume npm install c
 For published code install plugin as a dev dependency.
 Add `@types/chrome` as a dev dependency and merge `"chrome"` into tsconfig types without discarding existing entries.
 
+The plugin also parses `chrome.*` and `browser.*` member expressions with Babel AST during build and infers permissions from `chrome-permission-map.json`. It never infers host URL patterns. Use `autoPermissions: false` to disable inference.
+
 Add `chromeExtension({ manifest: { name: 'My Extension', version: '0.1.0' }, background: 'background.js' })` to plugins alongside `react()`.
 
 By convention, create page entries at `modules/<page>/index.html`. The plugin discovers these entries and builds them independently:
@@ -49,6 +51,7 @@ Do not overwrite existing multi-page entries. Plain JS can instead use `public/b
 ## API truth and pitfalls
 
 - `manifest`: final authority over convention and shorthand config. Objects deep-merge; arrays are replaced as a whole.
+- `autoPermissions`: AST-based API permission inference, default `true`. An explicit `manifest.permissions` array remains final.
 - `pages`: auto-discovered page entries, explicit entry map, or `false`.
 - `pageRoot`: custom convention directory, default `modules`.
 - `popup`: output-relative HTML path. The convention uses `popup/index.html`; an alternate page must actually be built.
@@ -58,6 +61,7 @@ Do not overwrite existing multi-page entries. Plain JS can instead use `public/b
 - `outDir` currently only affects logging. Set Vite `build.outDir` for real output.
 - No built-in extension HMR, Chrome API mock, automatic background/content-script compilation or full manifest schema validation.
 - Use least permissions. Keep secrets and remotely executed code out of the extension.
+- Review generated permissions, especially `tabs`, `webRequest` and `scripting`; add `host_permissions` or `activeTab` manually when the API context needs them.
 
 ## Acceptance
 
