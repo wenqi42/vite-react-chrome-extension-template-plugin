@@ -1,0 +1,22 @@
+{
+  "evals": [
+    {
+      "id": 1,
+      "skill": "chrome-extension-create",
+      "prompt": "用这个模板创建一个带 ESLint、不带 Prettier 的 TS 扩展",
+      "expected": "Ask for destination if missing; use create with --eslint --no-prettier; verify TS and chrome types; do not run absent format scripts."
+    },
+    {
+      "id": 2,
+      "skill": "chrome-extension-create",
+      "prompt": "我还没发 npm，帮我用 npm link 在另一个目录验证模板",
+      "expected": "Link CLI and plugin globally, create outside repo, link plugin with --save before install; validate build and selected tools; report global links."
+    },
+    {
+      "id": 3,
+      "skill": "chrome-extension-plugin",
+      "prompt": "给现有 Vite React 项目接入 Chrome extension plugin，并配置 background",
+      "expected": "Preserve config, distinguish output path from TS input, configure stable background output, verify manifest and clearly separate HTTP preview from Chrome runtime acceptance."
+    }
+  ]
+}

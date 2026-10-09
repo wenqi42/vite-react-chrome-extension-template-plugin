@@ -1,5 +1,5 @@
 {
-  "name": "vite-react-template-chrome-extension",
+  "name": "vite-react-chrome-extension-template-plugin",
   "version": "0.1.0",
   "private": true,
   "description": "A Vite plugin and create command for building React Chrome extensions.",
