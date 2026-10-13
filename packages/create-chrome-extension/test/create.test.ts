@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const cli = fileURLToPath(new URL('../bin/create.js', import.meta.url))
-const run = (cwd, args, input = '') =>
+const run = (cwd: string, args: string[], input = '') =>
   spawnSync(process.execPath, [cli, 'create', ...args], { cwd, input, encoding: 'utf8' })
 
 for (const eslint of [false, true]) {
@@ -24,7 +24,7 @@ for (const eslint of [false, true]) {
       assert.ok(existsSync(path.join(dir, 'vite.config.ts')))
       assert.equal(Boolean(pkg.devDependencies.eslint), eslint)
       assert.equal(Boolean(pkg.devDependencies.prettier), prettier)
-      assert.equal(existsSync(path.join(dir, 'eslint.config.js')), eslint)
+      assert.equal(existsSync(path.join(dir, 'eslint.config.ts')), eslint)
       assert.equal(existsSync(path.join(dir, '.prettierrc.json')), prettier)
       assert.equal(existsSync(path.join(dir, '.prettierignore')), prettier)
       assert.equal(Boolean(pkg.scripts.lint), eslint)

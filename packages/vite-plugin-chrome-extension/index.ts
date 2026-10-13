@@ -1,22 +1,40 @@
 import fs from "node:fs";
 import path from "node:path";
-import { parse } from "@babel/parser";
+import { parse, type ParserPlugin } from "@babel/parser";
+import type { Node } from "@babel/types";
+import type { Plugin, ResolvedConfig } from "vite";
+
+export interface ChromeExtensionOptions {
+  manifest?: Manifest;
+  pages?: Record<string, string> | false;
+  pageRoot?: string;
+  background?: string;
+  popup?: string;
+  contentScripts?: Array<Record<string, unknown>>;
+  autoPermissions?: boolean;
+  outDir?: string;
+}
+
+export interface Manifest extends Record<string, unknown> {
+  permissions?: string[];
+  icons?: Record<string, string>;
+}
 
 const PERMISSION_MAP = JSON.parse(
   fs.readFileSync(
     new URL("./chrome-permission-map.json", import.meta.url),
     "utf8",
   ),
-).apis;
+).apis as Record<string, string[]>;
 
-const DEFAULT_MANIFEST = {
+const DEFAULT_MANIFEST: Manifest = {
   manifest_version: 3,
   name: "Vite React Chrome Extension",
   version: "0.1.0",
   description: "A Chrome extension built with Vite and React.",
 };
 
-const PAGE_MANIFEST = {
+const PAGE_MANIFEST: Record<string, (pages: Record<string, string>) => Manifest> = {
   popup: (pages) => ({ action: { default_popup: pages.popup } }),
   options: (pages) => ({
     options_ui: { page: pages.options, open_in_tab: true },
@@ -25,7 +43,7 @@ const PAGE_MANIFEST = {
   devtools: (pages) => ({ devtools_page: pages.devtools }),
 };
 
-function isPlainObject(value) {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
@@ -33,7 +51,9 @@ function isPlainObject(value) {
  * Merge objects like lodash.merge while treating arrays as user-owned values.
  * This prevents default permissions/content scripts from leaking into user config.
  */
-function deepMerge(base, override) {
+function deepMerge(base: Manifest, override: Manifest): Manifest;
+function deepMerge(base: unknown, override: unknown): unknown;
+function deepMerge(base: unknown, override: unknown): unknown {
   if (!isPlainObject(base) || !isPlainObject(override))
     return override === undefined ? base : override;
   const result = { ...base };
@@ -46,7 +66,7 @@ function deepMerge(base, override) {
   return result;
 }
 
-function pageNameFromEntry(entry, pageRoot = "modules") {
+function pageNameFromEntry(entry: string, pageRoot = "modules") {
   const relative = entry.split(path.sep).join("/");
   const prefix = `${pageRoot.split(path.sep).join("/")}/`;
   return relative
@@ -54,7 +74,7 @@ function pageNameFromEntry(entry, pageRoot = "modules") {
     .replace(/\/index\.html$/, "");
 }
 
-function discoverPages(root, pageRoot = "modules") {
+function discoverPages(root: string, pageRoot = "modules"): Record<string, string> {
   const directory = path.resolve(root, pageRoot);
   if (!fs.existsSync(directory)) return {};
 
@@ -71,7 +91,7 @@ function discoverPages(root, pageRoot = "modules") {
   );
 }
 
-function normalizePages(root, pages, pageRoot) {
+function normalizePages(root: string, pages: ChromeExtensionOptions["pages"], pageRoot?: string) {
   if (pages === false) return {};
   if (pages && isPlainObject(pages)) {
     return Object.fromEntries(
@@ -84,13 +104,13 @@ function normalizePages(root, pages, pageRoot) {
   return discoverPages(root, pageRoot);
 }
 
-function pageInputEntries(pages) {
+function pageInputEntries(pages: Record<string, string>) {
   return Object.fromEntries(
     Object.entries(pages).map(([name, entry]) => [`${name}/index`, entry]),
   );
 }
 
-function memberChain(node) {
+function memberChain(node: Node | null | undefined): string[] | null {
   if (node?.type === "Identifier") return [node.name];
   if (
     (node?.type === "MemberExpression" ||
@@ -104,20 +124,21 @@ function memberChain(node) {
   return null;
 }
 
-function collectPermissions(code, id) {
-  const plugins = ["topLevelAwait"];
+function collectPermissions(code: string, id: string) {
+  const plugins: ParserPlugin[] = ["topLevelAwait"];
   if (/\.(?:ts|tsx)$/.test(id)) plugins.push("typescript");
   if (/\.(?:jsx|tsx)$/.test(id)) plugins.push("jsx");
   const ast = parse(code, { sourceType: "unambiguous", plugins });
-  const permissions = new Set();
-  const namespaces = new Set();
-  const visit = (node) => {
+  const permissions = new Set<string>();
+  const namespaces = new Set<string>();
+  const visit = (node: unknown): void => {
     if (!node || typeof node !== "object") return;
+    const candidate = node as Node;
     if (
-      node.type === "MemberExpression" ||
-      node.type === "OptionalMemberExpression"
+      candidate.type === "MemberExpression" ||
+      candidate.type === "OptionalMemberExpression"
     ) {
-      const chain = memberChain(node);
+      const chain = memberChain(candidate);
       if (chain?.[0] === "chrome" || chain?.[0] === "browser") {
         const namespace = chain[1];
         if (namespace) {
@@ -143,8 +164,8 @@ function collectPermissions(code, id) {
   };
 }
 
-function pagesToManifest(pages) {
-  return Object.entries(pages).reduce((manifest, [name, entry]) => {
+function pagesToManifest(pages: Record<string, string>): Manifest {
+  return Object.entries(pages).reduce<Manifest>((manifest, [name]) => {
     const outputPath = `${name}/index.html`;
     const builder = PAGE_MANIFEST[name];
     return builder
@@ -153,7 +174,7 @@ function pagesToManifest(pages) {
   }, {});
 }
 
-function validateManifest(manifest) {
+function validateManifest(manifest: Manifest) {
   if (manifest.manifest_version !== 3) {
     throw new Error("[chrome-extension] Only Manifest V3 is supported.");
   }
@@ -179,17 +200,16 @@ function validateManifest(manifest) {
  *   outDir?: string
  * }} options
  */
-export default function chromeExtension(options = {}) {
-  let resolvedConfig;
-  let pageEntries = {};
-  const usedPermissions = new Set();
-  const unknownNamespaces = new Set();
+export default function chromeExtension(options: ChromeExtensionOptions = {}): Plugin {
+  let resolvedConfig: ResolvedConfig;
+  let pageEntries: Record<string, string> = {};
+  const usedPermissions = new Set<string>();
+  const unknownNamespaces = new Set<string>();
 
   return {
     name: "vite-plugin-chrome-extension",
     apply: "build",
     transform(code, id) {
-      if (options.autoPermissions === false) return null;
       if (
         id.includes("/node_modules/") ||
         !/\.(?:m?[jt]sx?|vue|svelte)$/.test(id)
@@ -206,7 +226,7 @@ export default function chromeExtension(options = {}) {
         );
       } catch (error) {
         this.warn(
-          `[chrome-extension] AST permission analysis skipped ${id}: ${error.message}`,
+          `[chrome-extension] AST permission analysis skipped ${id}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
       return null;
@@ -249,7 +269,7 @@ export default function chromeExtension(options = {}) {
         DEFAULT_MANIFEST,
         pagesToManifest(pageEntries),
       );
-      const shortcutManifest = {};
+      const shortcutManifest: Manifest = {};
 
       if (options.popup) {
         shortcutManifest.action = { default_popup: options.popup };
@@ -268,12 +288,8 @@ export default function chromeExtension(options = {}) {
       const generatedManifest = deepMerge(
         deepMerge(autoManifest, shortcutManifest),
         options.manifest || {},
-      );
-      const shouldInferPermissions = !Object.prototype.hasOwnProperty.call(
-        options.manifest || {},
-        "permissions",
-      );
-      if (shouldInferPermissions && usedPermissions.size > 0) {
+      ) as Manifest;
+      if (options.autoPermissions !== false && usedPermissions.size > 0) {
         generatedManifest.permissions = [
           ...new Set([
             ...(generatedManifest.permissions || []),

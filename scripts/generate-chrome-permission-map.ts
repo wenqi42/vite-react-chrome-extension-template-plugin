@@ -4,15 +4,16 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { load } from "cheerio";
 
 const API_INDEX_URL =
   "https://developer.chrome.com/docs/extensions/reference/api?hl=en";
 const outputPath = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  "../packages/vite-plugin-chrome-extension/chrome-permission-map.json",
+  "../../packages/vite-plugin-chrome-extension/chrome-permission-map.json",
 );
 
-const fallbackPermissions = {
+const fallbackPermissions: Record<string, string[]> = {
   accessibilityFeatures: [
     "accessibilityFeatures.read",
     "accessibilityFeatures.modify",
@@ -65,26 +66,20 @@ const fallbackPermissions = {
   webAuthenticationProxy: ["webAuthenticationProxy"],
 };
 
-function decodeHtml(value) {
-  return value
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#39;", "'")
-    .replaceAll("&amp;", "&")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">");
-}
-
-function apiLinks(html) {
-  const links = new Set();
-  const pattern =
-    /href="([^"]*\/docs\/extensions\/reference\/api\/([a-zA-Z][\w]*))"/g;
-  for (const match of html.matchAll(pattern)) links.add(match[2]);
+function apiLinks(html: string) {
+  const $ = load(html);
+  const links = new Set<string>();
+  $('a[href*="/docs/extensions/reference/api/"]').each((_, element) => {
+    const href = $(element).attr("href");
+    const match = href?.match(/\/api\/([a-zA-Z][\w]*)/);
+    if (match) links.add(match[1]);
+  });
   return [...links].sort();
 }
 
-function permissionsFromPage(html, namespace) {
-  const text = decodeHtml(html.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ");
-  const permissions = new Set();
+function permissionsFromPage(html: string, namespace: string) {
+  const text = load(html).root().text().replace(/\s+/g, " ");
+  const permissions = new Set<string>();
   const phrases = [
     new RegExp(
       `requires? (?:the )?["'\`]?(${namespace}(?:\\.[a-z]+)?)["'\`]? permission`,
@@ -125,7 +120,7 @@ async function main() {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     source: API_INDEX_URL,
     description: "Chrome extension API namespace to manifest permission map.",
-    generatedBy: "scripts/generate-chrome-permission-map.mjs",
+    generatedBy: "scripts/generate-chrome-permission-map.ts",
     apis: Object.fromEntries(
       Object.entries(apis).sort(([a], [b]) => a.localeCompare(b)),
     ),

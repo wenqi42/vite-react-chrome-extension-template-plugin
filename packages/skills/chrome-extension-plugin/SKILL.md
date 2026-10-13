@@ -7,7 +7,7 @@ description: "Integrate @vite-react-chrome-extension/plugin into Vite React apps
 
 ## Inspect first
 
-Read current plugin `index.js` / `index.d.ts`, project Vite config, manifest and package.json.
+Read current plugin `index.ts` / generated `dist/index.d.ts`, project Vite config, manifest and package.json.
 Determine the Vite root, existing entries, output directory, permissions and target pages.
 Preserve existing configuration. Confirm missing consequential requirements.
 Use the sibling create skill for a new project.
@@ -50,8 +50,8 @@ Do not overwrite existing multi-page entries. Plain JS can instead use `public/b
 
 ## API truth and pitfalls
 
-- `manifest`: final authority over convention and shorthand config. Objects deep-merge; arrays are replaced as a whole.
-- `autoPermissions`: AST-based API permission inference, default `true`. An explicit `manifest.permissions` array remains final.
+- `manifest`: final authority over convention and shorthand config. Objects deep-merge; arrays are replaced as a whole, except `manifest.permissions`, which is deduplicated with inferred API permissions.
+- `autoPermissions`: AST-based API permission inference, default `true`. An explicit `manifest.permissions` array is merged with inferred permissions; set this to `false` for complete manual control.
 - `pages`: auto-discovered page entries, explicit entry map, or `false`.
 - `pageRoot`: custom convention directory, default `modules`.
 - `popup`: output-relative HTML path. The convention uses `popup/index.html`; an alternate page must actually be built.

@@ -3,10 +3,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { createInterface } from 'node:readline'
+import { createInterface, type Interface } from 'node:readline'
 
 const [, , command, ...args] = process.argv
-const templateDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../template')
+const templateDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../template')
 
 async function main() {
   if (command === '--help' || command === '-h') {
@@ -24,15 +24,15 @@ async function main() {
   for (const tool of ['eslint', 'prettier']) {
     if (flags.has(`--${tool}`) && flags.has(`--no-${tool}`)) throw new Error(`Conflicting options for ${tool}`)
   }
-  let rl
-  let lines
-  async function ask(question) {
+  let rl: Interface | undefined
+  let lines: AsyncIterableIterator<string> | undefined
+  async function ask(question: string) {
     if (!rl) {
       rl = createInterface({ input: process.stdin, crlfDelay: Infinity })
       lines = rl[Symbol.asyncIterator]()
     }
     process.stdout.write(question)
-    const answer = await lines.next()
+    const answer = await lines!.next()
     if (answer.done) throw new Error('Input ended; creation cancelled. Supply a directory and explicit tool flags for non-interactive use.')
     return answer.value.trim()
   }
@@ -46,7 +46,7 @@ async function main() {
     if (fs.existsSync(targetDir) && (!fs.statSync(targetDir).isDirectory() || fs.readdirSync(targetDir).length > 0)) {
       throw new Error(`Target directory is not empty or is not a directory: ${targetDir}`)
     }
-    async function choose(tool) {
+    async function choose(tool: string) {
       if (flags.has(`--${tool}`)) return true
       if (flags.has(`--no-${tool}`)) return false
       while (true) {
@@ -67,11 +67,11 @@ async function main() {
     if (eslint) {
       Object.assign(packageJson.devDependencies, {
         eslint: '^9.39.0', '@eslint/js': '^9.39.0', 'typescript-eslint': '^8.46.0',
-        'eslint-plugin-react-hooks': '^5.2.0', 'eslint-plugin-react-refresh': '^0.4.24', globals: '^16.4.0'
+        'eslint-plugin-react-hooks': '^5.2.0', 'eslint-plugin-react-refresh': '^0.4.24', globals: '^16.4.0', jiti: '^2.6.1'
       })
       packageJson.scripts.lint = 'eslint .'
       packageJson.scripts['lint:fix'] = 'eslint . --fix'
-      fs.copyFileSync(path.join(optionalDir, 'eslint.config.js'), path.join(targetDir, 'eslint.config.js'))
+      fs.copyFileSync(path.join(optionalDir, 'eslint.config.ts'), path.join(targetDir, 'eslint.config.ts'))
     }
     if (prettier) {
       packageJson.devDependencies.prettier = '^3.6.2'

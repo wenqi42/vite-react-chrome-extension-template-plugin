@@ -37,52 +37,6 @@ npx create-vite-react-chrome-extension create my-extension --eslint --prettier
 npx create-vite-react-chrome-extension create my-extension --no-eslint --no-prettier
 ```
 
-### 发布前本地体验
-
-推荐通过全局 link 体验，不需要发布 npm。下面命令中的 `/absolute/path/to/...` 请替换为你实际的绝对路径。
-
-```bash
-# 在仓库根目录安装依赖并注册全局命令与插件
-npm install
-npm link --workspace create-vite-react-chrome-extension --workspace @vite-react-chrome-extension/plugin
-
-# 切到仓库外一个已存在的空闲目录
-cd /absolute/path/to/playground
-create-vite-react-chrome-extension create my-extension --eslint --prettier
-cd my-extension
-
-# 必须先 link 尚未发布的插件，避免 npm 去 registry 查找它
-npm link @vite-react-chrome-extension/plugin --save
-npm install
-npm run build
-npm run lint
-npm run format:check
-```
-
-真正提供全局 bin 的是 CLI package，不是它内部的 `template/`。
-`--save` 会把生成项目的插件依赖保存为本地 `file:` 路径；这是本地验证配置，不应作为公开模板提交。
-切换 Node 版本可能改变全局 npm prefix，需要重新 link。若命令不可见，检查 `npm prefix -g` 对应的 `bin` 是否在 PATH 中。
-撤销全局注册可执行 `npm uninstall -g create-vite-react-chrome-extension @vite-react-chrome-extension/plugin`；不要删除本地源码。
-
-也可直接调用源码：
-
-在仓库根目录运行：
-
-```bash
-node packages/create-chrome-extension/bin/create.js create
-```
-
-例如创建 `my-extension` 后，先把未发布的插件依赖指向本地包：
-
-```bash
-cd my-extension
-npm pkg set 'devDependencies.@vite-react-chrome-extension/plugin=file:../packages/vite-plugin-chrome-extension'
-npm install
-npm run build
-```
-
-上面的相对路径适用于项目创建在仓库根目录内的情况；其他位置请使用插件包的绝对路径。
-
 ### 模板语言与开发工具
 
 默认模板使用 TypeScript：页面入口为 `src/popup/main.tsx` 和 `src/options/main.tsx`，后台为 `src/background.ts`，配置为 `vite.config.ts`。
@@ -102,8 +56,8 @@ npm run build
 npm install -D @vite-react-chrome-extension/plugin
 ```
 
-```js
-// vite.config.js
+```ts
+// vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import chromeExtension from "@vite-react-chrome-extension/plugin";
@@ -204,7 +158,8 @@ npm run generate:permissions
 - `chrome.scripting` 只能推导 `scripting`；目标页面的 host permissions、`activeTab` 等无法从 API 调用安全决定，需要用户配置。
 - `tabs`、`webRequest` 等 API 可能还依赖 host permissions，plugin 不会猜测 URL 范围。
 - 未知 namespace 会产生构建 warning，不会自动生成危险权限。
-- 如果用户显式传入 `manifest.permissions`，该数组视为最终配置，自动推导不会覆盖它；没有显式传入时，才会在已有权限上追加推导结果。
+- 如果用户显式传入 `manifest.permissions`，它会和 AST 自动推导出的权限去重合并；这样用户可以补充当前映射遗漏的权限，同时保留代码实际使用的权限。
+- 如果需要完全手动控制权限，再设置 `autoPermissions: false`。
 
 如需完全关闭自动推导：
 
@@ -222,15 +177,6 @@ chromeExtension({
 - Content scripts 必须引用实际生成的文件；普通 content script 不是 ESM，不能直接指向 TS 或包含顶层 import 的 Vite chunk。简单场景可使用 `public/content.js`，复杂场景需独立打包为兼容脚本。
 - 使用最小权限；不要把密钥、远程执行脚本或不必要的 host permissions 放入扩展。
 
-### Chrome 验证
-
-1. `npm run build`，确认 `dist/manifest.json` 和其引用文件存在。
-2. 打开 `chrome://extensions`，开启开发者模式，加载已解压的扩展程序，选择 `dist`。
-3. 从扩展工具栏打开 popup，在扩展卡片检查 Service Worker 和错误信息。
-4. 修改后重新构建，在扩展管理页点刷新，再重新打开 popup。
-
-HTTP 预览页面成功不等于 Chrome 扩展运行验证成功；要单独确认权限、Service Worker、Chrome API 和 CSP。
-
 ## 开发说明
 
 ```bash
@@ -238,6 +184,8 @@ npm install
 npm run test
 npm run build:example
 ```
+
+仓库源码统一使用 TypeScript。根目录 `tsconfig.json` 提供 Node 构建的共享配置，脚本、CLI、插件及测试通过 `tsc` 编译后执行；React 页面和后台通过 Vite 构建。插件的 `.d.ts` 自动生成，发布入口只指向 `dist` 中的 JavaScript。首次本地 link 前需运行 `npm run build`；修改运行包源码后也需重新构建。可选 ESLint 配置为 `eslint.config.ts`，生成项目通过 `jiti` 加载。
 
 本项目刻意不把 Chrome 运行时 API 包装成自有抽象：用户可以直接使用官方 `chrome.*` API，并通过 `@types/chrome` 获得类型提示。
 
@@ -248,7 +196,7 @@ packages/
   create-chrome-extension/       CLI、template、optional 配置、测试
   vite-plugin-chrome-extension/  ESM plugin 与类型声明
   skills/                       AI 使用指南（不是 npm runtime package）
-examples/basic-extension/       JS 最小示例，不是默认 TS 模板
+examples/basic-extension/       TS 最小示例，不是默认模板
 AGENTS.md                       后续开发约束与验证清单
 ```
 
@@ -263,34 +211,8 @@ AI 使用指南：
 
 ### Overview and prerequisites
 
-This npm-workspaces repository contains a build-only Vite plugin that emits a Chrome Manifest V3 manifest, a CLI that scaffolds React + TypeScript extensions, and a minimal JavaScript example.
+This npm-workspaces repository contains a build-only Vite plugin that emits a Chrome Manifest V3 manifest, a CLI that scaffolds React + TypeScript extensions, and a minimal TypeScript example.
 Use Node.js 22 LTS or newer and npm 10+. The verified local environment is Node 24 / npm 11; the root engine minimum is not a compatibility guarantee for all optional tools.
-
-### Local development without publishing
-
-From the repository root:
-
-```bash
-npm install
-npm link --workspace create-vite-react-chrome-extension --workspace @vite-react-chrome-extension/plugin
-```
-
-In a separate existing playground directory:
-
-```bash
-create-vite-react-chrome-extension create my-extension --eslint --prettier
-cd my-extension
-npm link @vite-react-chrome-extension/plugin --save
-npm install
-npm run build
-npm run lint
-npm run format:check
-```
-
-Link the **CLI package**, not its inner template directory. Link the unpublished plugin before running `npm install` in the generated project.
-`--save` records a local `file:` dependency for testing; do not ship that machine-specific path in the public template.
-Check `npm prefix -g` and PATH if the global command is missing. Switching Node installations may require linking again.
-To unregister the global links, run `npm uninstall -g create-vite-react-chrome-extension @vite-react-chrome-extension/plugin`; keep the source directories.
 
 After the packages are published, users can instead run:
 
@@ -337,7 +259,7 @@ Options:
 - `outDir`: currently affects logging only. Use Vite's `build.outDir` for actual output.
 
 Merge precedence is convention-generated values, then shorthand options, then `manifest`. Objects are recursively merged and arrays are replaced as whole values, so explicit user manifest data always wins.
-An explicit `manifest.permissions` array is final; host permissions and context-dependent requirements remain manual.
+An explicit `manifest.permissions` array is merged with inferred permissions, so users can add permissions not covered by the current map. Set `autoPermissions: false` for complete manual control. Host permissions and context-dependent requirements remain manual.
 
 ### Limitations and validation
 
@@ -356,7 +278,7 @@ npm run create:smoke
 npm run build:example
 ```
 
-The root suite checks the example build, plugin declarations, CLI syntax and CLI creation scenarios. It does **not** replace an independent generated-project install/build/lint/format check or a real Chrome runtime test.
+All repository implementation sources are TypeScript. Shared Node compiler settings live in root `tsconfig.json`. Scripts, CLI, plugin and tests are compiled with `tsc` before execution; Vite builds the React pages and background. Plugin declarations are generated, and runtime package entries point to compiled `dist` JavaScript. The optional `eslint.config.ts` is loaded with `jiti`.
 Follow [AGENTS.md](AGENTS.md) for maintenance.
 Read [CLI skill](packages/skills/chrome-extension-create/SKILL.md) and [plugin skill](packages/skills/chrome-extension-plugin/SKILL.md) for AI-assisted usage.
 These directories are skill sources, not automatically installed skills or npm packages. Install each as a direct child of your client's supported skills root if automatic discovery is desired.

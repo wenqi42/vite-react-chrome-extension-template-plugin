@@ -1,22 +1,29 @@
 {
   "name": "vite-react-chrome-extension-template-plugin",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "private": true,
+  "type": "module",
   "description": "A Vite plugin and create command for building React Chrome extensions.",
   "workspaces": [
     "packages/*",
     "examples/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build:scripts && npm run build --workspaces --if-present",
+    "build:scripts": "tsc -p tsconfig.scripts.json",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc -p tsconfig.scripts.json --noEmit",
     "test": "npm run build && npm run typecheck && npm run test --workspace create-vite-react-chrome-extension && npm run test --workspace @vite-react-chrome-extension/plugin",
     "create:smoke": "npm run test --workspace create-vite-react-chrome-extension",
     "build:example": "npm run build --workspace @example/basic-extension",
-    "generate:permissions": "node scripts/generate-chrome-permission-map.mjs"
+    "generate:permissions": "npm run build:scripts && node dist/scripts/generate-chrome-permission-map.js"
   },
   "engines": {
     "node": ">=18"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "cheerio": "^1.2.0",
+    "typescript": "^5.9.3"
+  }
 }

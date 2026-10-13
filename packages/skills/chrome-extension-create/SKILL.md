@@ -5,7 +5,7 @@ description: "Create and validate React TypeScript Chrome extensions using creat
 
 # Create a Chrome extension
 
-1. Locate the repository and read `packages/create-chrome-extension/bin/create.js`, template package.json and root README. Do not assume npm publication.
+1. Locate the repository and read `packages/create-chrome-extension/bin/create.ts`, template package.json and root README. Do not assume npm publication.
 2. Confirm the destination/project name and independent ESLint/Prettier choices when unspecified. Use lowercase npm-compatible names. Never overwrite a nonempty directory.
 3. Choose published or local mode. For unattended invocation supply both tool flags to avoid waiting on prompts.
 
@@ -26,6 +26,7 @@ Register the CLI and plugin from the repo root:
 
 ```bash
 npm install
+npm run build
 npm link --workspace create-vite-react-chrome-extension --workspace @vite-react-chrome-extension/plugin
 ```
 
@@ -41,7 +42,7 @@ npm install
 Link **before** installing so npm does not request the unpublished plugin from the registry.
 The CLI package has the global executable, not the nested `template` directory.
 `--save` records a local file dependency; keep it in the test project only.
-If global writes are unavailable, offer direct `node <repo>/packages/create-chrome-extension/bin/create.js create ...` and a local plugin file dependency rather than publishing.
+If global writes are unavailable, build first, then offer direct `node <repo>/packages/create-chrome-extension/dist/bin/create.js create ...` and a local plugin file dependency rather than publishing.
 
 ## Verify and report
 

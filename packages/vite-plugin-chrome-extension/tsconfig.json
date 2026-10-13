@@ -1,7 +1,6 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": false,
     "noEmit": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
@@ -9,5 +8,5 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["index.d.ts"]
+  "include": ["index.ts", "test/**/*.ts", "build.ts"]
 }

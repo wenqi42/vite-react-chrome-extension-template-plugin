@@ -3,6 +3,17 @@ import react from "@vitejs/plugin-react";
 import chromeExtension from "@vite-react-chrome-extension/plugin";
 
 export default defineConfig({
+  base: "./",
+  build: {
+    rollupOptions: {
+      input: { background: "src/background.ts" },
+      output: {
+        entryFileNames: chunk => chunk.name === "background"
+          ? "background.js"
+          : "assets/[name]-[hash].js",
+      },
+    },
+  },
   plugins: [
     react(),
     chromeExtension({

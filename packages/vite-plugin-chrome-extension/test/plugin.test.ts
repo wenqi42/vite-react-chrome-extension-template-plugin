@@ -1,10 +1,41 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { Plugin, ResolvedConfig } from "vite";
+import type { PluginContext, TransformPluginContext, EmittedFile } from "rollup";
 import chromeExtension, {
   collectPermissions,
   deepMerge,
   pagesToManifest,
 } from "../index.js";
+
+function hook<T extends Function>(value: T | { handler: T } | undefined): T {
+  assert.ok(value);
+  return typeof value === "function" ? value : value.handler;
+}
+
+function setup(plugin: Plugin) {
+  hook(plugin.configResolved)({
+    root: "/workspace",
+    build: { outDir: "dist", rollupOptions: {} },
+  } as ResolvedConfig);
+}
+
+function transform(plugin: Plugin, code: string, id: string) {
+  hook(plugin.transform).call({ warn: () => {} } as unknown as TransformPluginContext, code, id);
+}
+
+function manifest(plugin: Plugin): Record<string, any> {
+  let output: Record<string, any> = {};
+  hook(plugin.generateBundle).call({
+    emitFile: (asset: EmittedFile) => {
+      assert.equal(asset.type, "asset");
+      if (asset.type === "asset") output = JSON.parse(String(asset.source));
+      return "manifest";
+    },
+    warn: () => {},
+  } as unknown as PluginContext, {} as never, {}, false);
+  return output;
+}
 
 test("deepMerge recursively merges objects and replaces arrays", () => {
   assert.deepEqual(
@@ -56,50 +87,30 @@ test("explicit manifest config wins over convention and shorthand config", () =>
       permissions: ["storage"],
     },
   });
-  let output;
-  plugin.configResolved({
-    root: "/workspace",
-    build: { outDir: "dist", rollupOptions: {} },
-  });
-  plugin.transform.call(
-    { warn: () => {} },
+  setup(plugin);
+  transform(plugin,
     "chrome.tabs.query({ active: true });",
     "/workspace/src/main.ts",
   );
-  plugin.generateBundle.call({
-    emitFile: (asset) => {
-      output = JSON.parse(asset.source);
-    },
-    warn: () => {},
-  });
+  const output = manifest(plugin);
   assert.equal(output.action.default_popup, "user-popup.html");
   assert.equal(output.background.service_worker, "user-worker.js");
   assert.deepEqual(output.content_scripts, [
     { matches: ["https://user.example/*"], js: ["user.js"] },
   ]);
-  assert.deepEqual(output.permissions, ["storage"]);
+  assert.deepEqual(output.permissions, ["storage", "tabs"]);
 });
 
 test("API usage adds mapped permissions when manifest.permissions is omitted", () => {
   const plugin = chromeExtension({
     manifest: { name: "Auto Permission Extension", version: "1.0.0" },
   });
-  let output;
-  plugin.configResolved({
-    root: "/workspace",
-    build: { outDir: "dist", rollupOptions: {} },
-  });
-  plugin.transform.call(
-    { warn: () => {} },
+  setup(plugin);
+  transform(plugin,
     "chrome.tabs.query({ active: true });",
     "/workspace/src/main.ts",
   );
-  plugin.generateBundle.call({
-    emitFile: (asset) => {
-      output = JSON.parse(asset.source);
-    },
-    warn: () => {},
-  });
+  const output = manifest(plugin);
   assert.deepEqual(output.permissions, ["tabs"]);
 });
 
@@ -108,7 +119,7 @@ test("collectPermissions uses AST member expressions instead of string matching"
     `
       const text = "chrome.tabs should not count";
       chrome.tabs.query({ active: true });
-      browser.storage.local.set({ ready: true });
+      browser.tabs.query({ active: true });
       chrome["history"].search({ text: "x" });
     `,
     "/workspace/src/popup/main.tsx",
@@ -122,21 +133,11 @@ test("autoPermissions can be disabled", () => {
     autoPermissions: false,
     manifest: { name: "Manual Permission Extension", version: "1.0.0" },
   });
-  let output;
-  plugin.configResolved({
-    root: "/workspace",
-    build: { outDir: "dist", rollupOptions: {} },
-  });
-  plugin.transform.call(
-    { warn: () => {} },
+  setup(plugin);
+  transform(plugin,
     "chrome.tabs.query({ active: true });",
     "/workspace/src/main.ts",
   );
-  plugin.generateBundle.call({
-    emitFile: (asset) => {
-      output = JSON.parse(asset.source);
-    },
-    warn: () => {},
-  });
+  const output = manifest(plugin);
   assert.equal("permissions" in output, false);
 });
