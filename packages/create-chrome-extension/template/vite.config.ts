@@ -6,12 +6,16 @@ export default defineConfig({
   base: './',
   build: {
     rollupOptions: {
-      input: { background: 'src/background.ts' },
+      input: { background: 'modules/background/background.ts' },
       output: {
         entryFileNames: (chunk) =>
           chunk.name === 'background'
             ? 'background.js'
             : 'assets/[name]-[hash].js',
+        assetFileNames: (asset) =>
+          asset.name?.endsWith('.css')
+            ? 'assets/css/[name][extname]'
+            : 'assets/[name]-[hash][extname]',
       },
     },
   },

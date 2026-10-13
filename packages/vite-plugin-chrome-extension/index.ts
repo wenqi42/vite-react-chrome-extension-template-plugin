@@ -3,6 +3,7 @@ import path from "node:path";
 import { parse, type ParserPlugin } from "@babel/parser";
 import type { Node } from "@babel/types";
 import type { Plugin, ResolvedConfig } from "vite";
+import tailwindcss from "@tailwindcss/postcss";
 
 export interface ChromeExtensionOptions {
   manifest?: Manifest;
@@ -13,6 +14,10 @@ export interface ChromeExtensionOptions {
   contentScripts?: Array<Record<string, unknown>>;
   autoPermissions?: boolean;
   outDir?: string;
+  /** Enable Tailwind CSS 4 compilation in dev and build (default: true). */
+  tailwind?: boolean;
+  /** Rollup asset pattern used for generated assets. */
+  assetFileNames?: string;
 }
 
 export interface Manifest extends Record<string, unknown> {
@@ -208,9 +213,9 @@ export default function chromeExtension(options: ChromeExtensionOptions = {}): P
 
   return {
     name: "vite-plugin-chrome-extension",
-    apply: "build",
     transform(code, id) {
       if (
+        resolvedConfig?.command === "serve" ||
         id.includes("/node_modules/") ||
         !/\.(?:m?[jt]sx?|vue|svelte)$/.test(id)
       ) {
@@ -233,9 +238,19 @@ export default function chromeExtension(options: ChromeExtensionOptions = {}): P
     },
     config(userConfig) {
       const root = userConfig.root || process.cwd();
+      const postcss = userConfig.css?.postcss;
+      const css = options.tailwind === false ? undefined : {
+        postcss: {
+          ...(typeof postcss === "object" ? postcss : {}),
+          plugins: [
+            ...(typeof postcss === "object" ? postcss.plugins || [] : []),
+            tailwindcss({ base: path.resolve(root) }),
+          ],
+        },
+      };
       pageEntries = normalizePages(root, options.pages, options.pageRoot);
       const userInput = userConfig.build?.rollupOptions?.input;
-      if (Object.keys(pageEntries).length === 0) return undefined;
+      if (Object.keys(pageEntries).length === 0) return css ? { css } : undefined;
 
       const pageInput = pageInputEntries(pageEntries);
       const input =
@@ -244,9 +259,18 @@ export default function chromeExtension(options: ChromeExtensionOptions = {}): P
           : userInput || pageInput;
 
       return {
+        css,
         build: {
           rollupOptions: {
             input,
+            output: {
+              ...(userConfig.build?.rollupOptions?.output &&
+              !Array.isArray(userConfig.build.rollupOptions.output)
+                ? userConfig.build.rollupOptions.output
+                : {}),
+              assetFileNames:
+                options.assetFileNames || "assets/css/[name][extname]",
+            },
           },
         },
       };

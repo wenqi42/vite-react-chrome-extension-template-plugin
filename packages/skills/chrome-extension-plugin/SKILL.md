@@ -59,6 +59,7 @@ Do not overwrite existing multi-page entries. Plain JS can instead use `public/b
 - `contentScripts`: replaces the manifest array. Does not create, compile or hash-rewrite scripts.
 - Plain content scripts cannot contain top-level ESM imports; use static compatible JS or an independently configured compatible bundle.
 - `outDir` currently only affects logging. Set Vite `build.outDir` for real output.
+- `assetFileNames` controls generated asset names and defaults to `assets/css/[name][extname]`.
 - No built-in extension HMR, Chrome API mock, automatic background/content-script compilation or full manifest schema validation.
 - Use least permissions. Keep secrets and remotely executed code out of the extension.
 - Review generated permissions, especially `tabs`, `webRequest` and `scripting`; add `host_permissions` or `activeTab` manually when the API context needs them.

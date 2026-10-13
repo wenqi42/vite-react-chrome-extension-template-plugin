@@ -1,4 +1,5 @@
 import test from "node:test";
+import { resolveConfig } from "vite";
 import assert from "node:assert/strict";
 import type { Plugin, ResolvedConfig } from "vite";
 import type { PluginContext, TransformPluginContext, EmittedFile } from "rollup";
@@ -7,6 +8,26 @@ import chromeExtension, {
   deepMerge,
   pagesToManifest,
 } from "../index.js";
+
+test("Tailwind keeps inline PostCSS plugins and can be disabled", async () => {
+  const existing = { postcssPlugin: "existing-plugin" };
+  const config = await resolveConfig({
+    configFile: false,
+    plugins: [chromeExtension({ pages: false })],
+    css: { postcss: { plugins: [existing] } },
+  }, "serve");
+  const postcss = config.css.postcss;
+  assert.ok(postcss && typeof postcss === "object");
+  assert.ok(postcss.plugins?.includes(existing));
+  assert.ok(postcss.plugins?.some(plugin =>
+    "postcssPlugin" in plugin && plugin.postcssPlugin === "@tailwindcss/postcss"));
+  const manual = await resolveConfig({
+    configFile: false,
+    plugins: [chromeExtension({ pages: false, tailwind: false })],
+    css: { postcss: { plugins: [existing] } },
+  }, "serve");
+  assert.deepEqual(manual.css.postcss, { plugins: [existing] });
+});
 
 function hook<T extends Function>(value: T | { handler: T } | undefined): T {
   assert.ok(value);

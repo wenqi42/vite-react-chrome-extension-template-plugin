@@ -37,9 +37,66 @@ npx create-vite-react-chrome-extension create my-extension --eslint --prettier
 npx create-vite-react-chrome-extension create my-extension --no-eslint --no-prettier
 ```
 
+### 发布前本地体验
+
+推荐通过全局 link 体验，不需要发布 npm。下面命令中的 `/absolute/path/to/...` 请替换为你实际的绝对路径。
+
+```bash
+# 在仓库根目录安装依赖并注册全局命令与插件
+npm install
+npm run build
+npm link --workspace create-vite-react-chrome-extension --workspace @vite-react-chrome-extension/plugin
+
+# 切到仓库外一个已存在的空闲目录
+cd /absolute/path/to/playground
+create-vite-react-chrome-extension create my-extension --eslint --prettier
+cd my-extension
+
+# 必须先 link 尚未发布的插件，避免 npm 去 registry 查找它
+npm link @vite-react-chrome-extension/plugin --save
+npm install
+npm run build
+npm run lint
+npm run format:check
+```
+
+真正提供全局 bin 的是 CLI package，不是它内部的 `template/`。
+`--save` 会把生成项目的插件依赖保存为本地 `file:` 路径；这是本地验证配置，不应作为公开模板提交。
+切换 Node 版本可能改变全局 npm prefix，需要重新 link。若命令不可见，检查 `npm prefix -g` 对应的 `bin` 是否在 PATH 中。
+撤销全局注册可执行 `npm uninstall -g create-vite-react-chrome-extension @vite-react-chrome-extension/plugin`；不要删除本地源码。
+
+也可构建后直接调用 CLI：
+
+在仓库根目录运行：
+
+```bash
+npm run build
+node packages/create-chrome-extension/dist/bin/create.js create
+```
+
+例如创建 `my-extension` 后，先把未发布的插件依赖指向本地包：
+
+```bash
+cd my-extension
+npm pkg set 'devDependencies.@vite-react-chrome-extension/plugin=file:../packages/vite-plugin-chrome-extension'
+npm install
+npm run build
+```
+
+上面的相对路径适用于项目创建在仓库根目录内的情况；其他位置请使用插件包的绝对路径。
+
 ### 模板语言与开发工具
 
-默认模板使用 TypeScript：页面入口为 `src/popup/main.tsx` 和 `src/options/main.tsx`，后台为 `src/background.ts`，配置为 `vite.config.ts`。
+默认样式使用 Tailwind CSS 4。插件内置 `@tailwindcss/postcss` 编译，支持 Vite dev 和 build；每个模块在自己的目录中维护入口和样式，例如 `modules/popup/index.tsx`、`modules/popup/popup.css`：
+
+```css
+@import "tailwindcss" source(".");
+```
+
+在 TSX 中直接使用 `className="bg-slate-900 p-6 text-slate-50"` 等 utility classes。`source(".")` 从当前模块目录扫描组件；其他目录可通过 `@source` 添加。已有独立 PostCSS 配置的项目请设置 `chromeExtension({ tailwind: false })` 并自行接入 Tailwind，避免重复配置。默认接入会保留传入 Vite 的内联 PostCSS plugins。
+
+默认模板使用 TypeScript：每个扩展入口都位于 `modules/<entry>/`，例如 `modules/popup/index.tsx`、`modules/options/index.tsx` 和 `modules/background/background.ts`，配置为 `vite.config.ts`。
+CLI 会询问样式文件格式，支持 `css`、`less` 和 `sass`；也可以使用 `--css`、`--less` 或 `--sass` 跳过询问。选择 Less/Sass 时，模板中的模块样式文件会使用对应后缀，并加入对应预处理器依赖。
 后台通过 Rollup 单独编译为 `dist/background.js`；`npm run build` 会先进行类型检查。
 `@types/chrome` 已在 `devDependencies` 中默认安装，且 `tsconfig.json` 显式启用 `chrome` 类型。
 
@@ -56,7 +113,7 @@ npx create-vite-react-chrome-extension create my-extension --no-eslint --no-pret
 npm install -D @vite-react-chrome-extension/plugin
 ```
 
-```ts
+```js
 // vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
@@ -97,7 +154,7 @@ export default defineConfig({
 base: './',
 build: {
   rollupOptions: {
-    input: { background: 'src/background.ts' },
+    input: { background: 'modules/background/background.ts' },
     output: {
       entryFileNames: (chunk) =>
         chunk.name === 'background' ? 'background.js' : 'assets/[name]-[hash].js',
@@ -120,6 +177,7 @@ build: {
 | `background`     | 设置输出 JS 路径及 `background.type: 'module'`                                        |
 | `contentScripts` | 覆盖 `content_scripts` 数组，不负责编译脚本                                           |
 | `outDir`         | 当前只影响日志显示，真正输出目录请配置 Vite `build.outDir`                            |
+| `assetFileNames` | 生产构建的 Rollup 静态资源命名模式，默认 `assets/css/[name][extname]`                 |
 
 合并优先级从低到高为：约定页面生成值 → `popup` / `background` / `contentScripts` shorthand → `manifest`。
 对象字段递归合并，数组整体使用后者替换；例如传入 `manifest.action.default_popup` 会覆盖 `modules/popup/index.html` 的默认映射。
@@ -177,6 +235,15 @@ chromeExtension({
 - Content scripts 必须引用实际生成的文件；普通 content script 不是 ESM，不能直接指向 TS 或包含顶层 import 的 Vite chunk。简单场景可使用 `public/content.js`，复杂场景需独立打包为兼容脚本。
 - 使用最小权限；不要把密钥、远程执行脚本或不必要的 host permissions 放入扩展。
 
+### Chrome 验证
+
+1. `npm run build`，确认 `dist/manifest.json` 和其引用文件存在。
+2. 打开 `chrome://extensions`，开启开发者模式，加载已解压的扩展程序，选择 `dist`。
+3. 从扩展工具栏打开 popup，在扩展卡片检查 Service Worker 和错误信息。
+4. 修改后重新构建，在扩展管理页点刷新，再重新打开 popup。
+
+HTTP 预览页面成功不等于 Chrome 扩展运行验证成功；要单独确认权限、Service Worker、Chrome API 和 CSP。
+
 ## 开发说明
 
 ```bash
@@ -214,6 +281,33 @@ AI 使用指南：
 This npm-workspaces repository contains a build-only Vite plugin that emits a Chrome Manifest V3 manifest, a CLI that scaffolds React + TypeScript extensions, and a minimal TypeScript example.
 Use Node.js 22 LTS or newer and npm 10+. The verified local environment is Node 24 / npm 11; the root engine minimum is not a compatibility guarantee for all optional tools.
 
+### Local development without publishing
+
+From the repository root:
+
+```bash
+npm install
+npm run build
+npm link --workspace create-vite-react-chrome-extension --workspace @vite-react-chrome-extension/plugin
+```
+
+In a separate existing playground directory:
+
+```bash
+create-vite-react-chrome-extension create my-extension --eslint --prettier
+cd my-extension
+npm link @vite-react-chrome-extension/plugin --save
+npm install
+npm run build
+npm run lint
+npm run format:check
+```
+
+Link the **CLI package**, not its inner template directory. Link the unpublished plugin before running `npm install` in the generated project.
+`--save` records a local `file:` dependency for testing; do not ship that machine-specific path in the public template.
+Check `npm prefix -g` and PATH if the global command is missing. Switching Node installations may require linking again.
+To unregister the global links, run `npm uninstall -g create-vite-react-chrome-extension @vite-react-chrome-extension/plugin`; keep the source directories.
+
 After the packages are published, users can instead run:
 
 ```bash
@@ -229,8 +323,12 @@ The CLI rejects non-empty targets, invalid names, unknown flags and conflicting 
 
 ### Generated project
 
-- `src/App.tsx`、`src/popup/main.tsx`、`src/options/main.tsx`: React page entries.
-- `src/background.ts`: separately compiled module service worker.
+Tailwind CSS 4 is the default styling system. The extension plugin integrates `@tailwindcss/postcss` for both Vite dev and build. Each module owns its entry and stylesheet, for example `modules/popup/index.tsx` and `modules/popup/popup.css`, which contains `@import "tailwindcss" source(".");`. Use utility classes in that module and add `@source` for components outside it. Set `tailwind: false` when managing your own external PostCSS configuration; inline PostCSS plugins are preserved.
+The CLI asks for `css`, `less` or `sass`; use `--css`, `--less` or `--sass` for non-interactive creation. The selected suffix is applied to each module stylesheet and the matching preprocessor dependency is added.
+
+- `modules/popup/index.tsx`、`modules/options/index.tsx`: React page entries.
+- `modules/popup/popup.css`、`modules/options/options.css`: page styles; CLI can generate `.less` or `.sass`.
+- `modules/background/background.ts`: separately compiled module service worker.
 - `vite.config.ts`: explicit popup and background Rollup entries.
 - `@types/chrome`: default development dependency, enabled in tsconfig.
 - `build`: runs TypeScript checks followed by Vite.
@@ -243,7 +341,7 @@ Install `@vite-react-chrome-extension/plugin` as a dev dependency once published
 Use `react()` alongside `chromeExtension({ manifest: { name: 'My Extension', version: '0.1.0' }, background: 'background.js' })` in Vite's `plugins`.
 See the full configuration examples in the Chinese section above and `packages/create-chrome-extension/template/vite.config.ts`.
 
-The `background` option is an **output path**, not a source compiler entry. Either place plain JS at `public/background.js` or configure `src/background.ts` as a Rollup input with a stable `background.js` output. Do not use both.
+The `background` option is an **output path**, not a source compiler entry. Configure `modules/background/background.ts` as a Rollup input with a stable `background.js` output, or place a plain JS worker at `public/background.js`. Do not use both.
 
 Page entries follow `modules/<page>/index.html`; `popup`, `options`, `sidepanel` and `devtools` receive their corresponding Manifest V3 fields. Other page names are built but require an explicit manifest mapping.
 
@@ -257,6 +355,7 @@ Options:
 - `contentScripts`: assigns the manifest array; does not compile scripts.
 - `autoPermissions`: enables AST-based permission inference, default `true`.
 - `outDir`: currently affects logging only. Use Vite's `build.outDir` for actual output.
+- `assetFileNames`: Rollup output pattern for generated assets; defaults to `assets/css/[name][extname]`.
 
 Merge precedence is convention-generated values, then shorthand options, then `manifest`. Objects are recursively merged and arrays are replaced as whole values, so explicit user manifest data always wins.
 An explicit `manifest.permissions` array is merged with inferred permissions, so users can add permissions not covered by the current map. Set `autoPermissions: false` for complete manual control. Host permissions and context-dependent requirements remain manual.
@@ -278,7 +377,9 @@ npm run create:smoke
 npm run build:example
 ```
 
-All repository implementation sources are TypeScript. Shared Node compiler settings live in root `tsconfig.json`. Scripts, CLI, plugin and tests are compiled with `tsc` before execution; Vite builds the React pages and background. Plugin declarations are generated, and runtime package entries point to compiled `dist` JavaScript. The optional `eslint.config.ts` is loaded with `jiti`.
+All repository implementation sources are TypeScript. Shared Node compiler settings live in root `tsconfig.json`. Scripts, CLI, plugin and tests are compiled with `tsc` before execution; Vite builds the React pages and background. Plugin declarations are generated, and runtime package entries point to compiled `dist` JavaScript. Build before local linking and rebuild after source changes. The optional `eslint.config.ts` is loaded with `jiti`.
+
+The root suite checks TypeScript sources, the example build and CLI/plugin scenarios. It does **not** replace an independent generated-project install/build/lint/format check or a real Chrome runtime test.
 Follow [AGENTS.md](AGENTS.md) for maintenance.
 Read [CLI skill](packages/skills/chrome-extension-create/SKILL.md) and [plugin skill](packages/skills/chrome-extension-plugin/SKILL.md) for AI-assisted usage.
 These directories are skill sources, not automatically installed skills or npm packages. Install each as a direct child of your client's supported skills root if automatic discovery is desired.

@@ -6,7 +6,7 @@ description: "Create and validate React TypeScript Chrome extensions using creat
 # Create a Chrome extension
 
 1. Locate the repository and read `packages/create-chrome-extension/bin/create.ts`, template package.json and root README. Do not assume npm publication.
-2. Confirm the destination/project name and independent ESLint/Prettier choices when unspecified. Use lowercase npm-compatible names. Never overwrite a nonempty directory.
+2. Confirm the destination/project name, independent ESLint/Prettier choices, and stylesheet format when unspecified. Use lowercase npm-compatible names. Never overwrite a nonempty directory.
 3. Choose published or local mode. For unattended invocation supply both tool flags to avoid waiting on prompts.
 
 ## Published mode
@@ -17,7 +17,7 @@ Only after publication is confirmed:
 npx create-vite-react-chrome-extension create my-extension --eslint --no-prettier
 ```
 
-The `create` subcommand is required. Omitting the directory prompts for project name. Optional switches are `--eslint`, `--no-eslint`, `--prettier`, `--no-prettier`.
+The `create` subcommand is required. Omitting the directory prompts for project name. Optional switches are `--eslint`, `--no-eslint`, `--prettier`, `--no-prettier`, `--css`, `--less` and `--sass`.
 
 ## Unpublished local mode
 
@@ -48,7 +48,7 @@ If global writes are unavailable, build first, then offer direct `node <repo>/pa
 
 - Run typecheck and build in the generated project.
 - Run lint and format:check only if their tools were selected.
-- Confirm `src/App.tsx`, `src/popup/main.tsx`, `src/options/main.tsx`, `src/background.ts`, `vite.config.ts`, `@types/chrome`, and selected/absent configuration files.
+- Confirm `modules/popup/index.tsx`, `modules/options/index.tsx`, `modules/background/background.ts`, the selected module stylesheet suffix, `vite.config.ts`, `@types/chrome`, and selected/absent configuration files.
 - Inspect manifest references and generated worker. Load unpacked `dist` in Chrome for runtime validation when possible.
 - Report location, selections, exact checks, global links left installed and Chrome verification limits.
 - Do not call a successful HTTP preview a successful extension runtime test.

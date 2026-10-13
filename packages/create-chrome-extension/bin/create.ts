@@ -10,12 +10,12 @@ const templateDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 
 async function main() {
   if (command === '--help' || command === '-h') {
-    console.log('Usage: create-vite-react-chrome-extension create [directory] [--eslint|--no-eslint] [--prettier|--no-prettier]')
+    console.log('Usage: create-vite-react-chrome-extension create [directory] [--eslint|--no-eslint] [--prettier|--no-prettier] [--css|--less|--sass]')
     return
   }
   if (command !== 'create') throw new Error('Usage: create-vite-react-chrome-extension create [directory]')
   const flags = new Set(args.filter(arg => arg.startsWith('--')))
-  const allowed = ['--eslint', '--no-eslint', '--prettier', '--no-prettier']
+  const allowed = ['--eslint', '--no-eslint', '--prettier', '--no-prettier', '--css', '--less', '--sass']
   for (const flag of flags) {
     if (!allowed.includes(flag)) throw new Error(`Unknown option: ${flag}`)
   }
@@ -24,6 +24,8 @@ async function main() {
   for (const tool of ['eslint', 'prettier']) {
     if (flags.has(`--${tool}`) && flags.has(`--no-${tool}`)) throw new Error(`Conflicting options for ${tool}`)
   }
+  const styleFlags = ['--css', '--less', '--sass'].filter(flag => flags.has(flag))
+  if (styleFlags.length > 1) throw new Error('Conflicting stylesheet options.')
   let rl: Interface | undefined
   let lines: AsyncIterableIterator<string> | undefined
   async function ask(question: string) {
@@ -56,13 +58,34 @@ async function main() {
         console.log('Please enter y or n.')
       }
     }
+    async function chooseStyle() {
+      while (true) {
+        const answer = (await ask('Stylesheet format? (css/less/sass, default css): ')).toLowerCase()
+        if (['', 'css', 'less', 'sass'].includes(answer)) return answer || 'css'
+        console.log('Please enter css, less or sass.')
+      }
+    }
     const eslint = await choose('eslint')
     const prettier = await choose('prettier')
+    const style = styleFlags[0]?.slice(2) || await chooseStyle()
     fs.mkdirSync(targetDir, { recursive: true })
     fs.cpSync(templateDir, targetDir, { recursive: true })
     const packageJsonPath = path.join(targetDir, 'package.json')
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
     packageJson.name = name
+    packageJson.devDependencies[style === 'less' ? 'less' : style === 'sass' ? 'sass' : 'postcss'] =
+      style === 'less' ? '^4.4.0' : style === 'sass' ? '^1.93.2' : '^8.5.6'
+    const sourceStyle = path.join(targetDir, 'modules/popup/popup.css')
+    const stylePath = path.join(targetDir, `modules/popup/popup.${style}`)
+    fs.renameSync(sourceStyle, stylePath)
+    for (const moduleName of ['popup', 'options']) {
+      const entryPath = path.join(targetDir, `modules/${moduleName}/index.tsx`)
+      fs.writeFileSync(
+        entryPath,
+        fs.readFileSync(entryPath, 'utf8').replace(`'./${moduleName}.css'`, `'./${moduleName}.${style}'`),
+      )
+    }
+    fs.renameSync(path.join(targetDir, 'modules/options/options.css'), path.join(targetDir, `modules/options/options.${style}`))
     const optionalDir = path.resolve(templateDir, '../optional')
     if (eslint) {
       Object.assign(packageJson.devDependencies, {
