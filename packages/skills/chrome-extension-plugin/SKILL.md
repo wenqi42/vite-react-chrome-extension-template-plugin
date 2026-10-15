@@ -40,6 +40,8 @@ The plugin discovers `modules/<page>/index.html` and maps `popup`, `options`, `s
 
 `defineManifest` accepts an object, Promise or `(env) => manifest` factory. Explicit `manifest` values are the final configuration layer. Existing source paths in background, content scripts and page fields are added to Vite inputs and rewritten to generated output paths.
 
+An action does not require a popup: `action: { default_title: 'Open sidebar' }` is valid. For a toolbar action that opens a side panel, omit `default_popup`, configure `side_panel.default_path`, and call `chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })` in the worker. If the project has a discovered popup entry, remove that entry or disable its discovery. Do not rely on calling `sidePanel.open()` from popup startup without a user gesture.
+
 Content-script source entries are emitted as standalone IIFEs by default. `contentScripts: { standalone: false }` leaves output ownership to the project. Imported CSS, static assets and dynamic chunks are collected into `web_accessible_resources`; use `defineDynamicResource()` for the `<dynamic_resource>` placeholder.
 
 ## Permissions
@@ -65,6 +67,8 @@ npm run test:dev-reload -- --chrome /path/to/chrome-for-testing
 ```
 
 A successful HTTP preview is not extension runtime validation. Report popup, worker, content-script, permission, CSP and browser-version evidence separately.
+
+For the network rewrite example, saving a rule does not start interception. Attach an HTTP/HTTPS tab, trigger a new matching request, and assert the response received by the page. Inspect side panel match/success/failure indicators; use `npm run test:network-rewrite -- --chrome /path/to/chrome-for-testing` for its browser acceptance.
 
 ## Validation
 

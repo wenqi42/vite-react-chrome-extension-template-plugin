@@ -35,6 +35,7 @@
 | DEV-05 | Content script 原地 HMR | 待实现 | 需要 host 无刷新 fixture |
 | DEV-06 | 状态保留 HMR | 不支持 | 后续方向 |
 | DEV-07 | Firefox target | 不支持 | 后续方向 |
+| APP-01 | Network rewrite sidebar fixture | 现有 | 示例 15 项回归 + Chrome/CDP 20 项检查；真实 SIDE_PANEL、Fetch/XHR、header/body 改写及失败回退，见 [验收标准](spec/acceptance/network-rewrite.md) |
 
 ## 必跑命令
 
@@ -47,6 +48,10 @@ npm run build:vanilla-example
 npm run verify:extension -- --dist examples/basic-extension/dist --json
 npm run verify:extension -- --dist examples/vanilla-extension/dist --json
 npm run test:dev-reload -- --chrome /path/to/chrome-for-testing
+npm run build:network-example
+npm run verify:extension -- --dist examples/network-rewrite-extension/dist --json
+npm test --workspace @example/network-rewrite-extension
+npm run test:network-rewrite -- --chrome /path/to/chrome-for-testing --headed
 ```
 
 ## 运行时边界

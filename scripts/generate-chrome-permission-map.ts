@@ -52,6 +52,7 @@ const fallbackPermissions: Record<string, string[]> = {
   runtime: [],
   scripting: ["scripting"],
   sessions: ["sessions"],
+  storage: ["storage"],
   sidePanel: ["sidePanel"],
   tabCapture: ["tabCapture"],
   tabs: ["tabs"],

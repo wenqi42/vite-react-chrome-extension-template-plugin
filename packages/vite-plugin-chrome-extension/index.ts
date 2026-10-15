@@ -850,15 +850,23 @@ function rewriteManifestReferences(
     return output || value.replaceAll(path.sep, "/");
   };
   const action = result.action;
-  if (isPlainObject(action)) action.default_popup = rewrite(action.default_popup);
+  if (isPlainObject(action) && "default_popup" in action) {
+    action.default_popup = rewrite(action.default_popup);
+  }
   const background = result.background;
-  if (isPlainObject(background)) background.service_worker = rewrite(background.service_worker);
+  if (isPlainObject(background) && "service_worker" in background) {
+    background.service_worker = rewrite(background.service_worker);
+  }
   if ("options_page" in result) result.options_page = rewrite(result.options_page);
   if ("devtools_page" in result) result.devtools_page = rewrite(result.devtools_page);
   const optionsUi = result.options_ui;
-  if (isPlainObject(optionsUi)) optionsUi.page = rewrite(optionsUi.page);
+  if (isPlainObject(optionsUi) && "page" in optionsUi) {
+    optionsUi.page = rewrite(optionsUi.page);
+  }
   const sidePanel = result.side_panel;
-  if (isPlainObject(sidePanel)) sidePanel.default_path = rewrite(sidePanel.default_path);
+  if (isPlainObject(sidePanel) && "default_path" in sidePanel) {
+    sidePanel.default_path = rewrite(sidePanel.default_path);
+  }
   const contentScripts = result.content_scripts;
   if (Array.isArray(contentScripts)) {
     for (const script of contentScripts) {
@@ -888,11 +896,17 @@ function rewriteGeneratedPagePaths(
   const replace = (value: unknown) =>
     typeof value === "string" ? replacements.get(value) || value : value;
   const action = result.action;
-  if (isPlainObject(action)) action.default_popup = replace(action.default_popup);
+  if (isPlainObject(action) && "default_popup" in action) {
+    action.default_popup = replace(action.default_popup);
+  }
   const optionsUi = result.options_ui;
-  if (isPlainObject(optionsUi)) optionsUi.page = replace(optionsUi.page);
+  if (isPlainObject(optionsUi) && "page" in optionsUi) {
+    optionsUi.page = replace(optionsUi.page);
+  }
   const sidePanel = result.side_panel;
-  if (isPlainObject(sidePanel)) sidePanel.default_path = replace(sidePanel.default_path);
+  if (isPlainObject(sidePanel) && "default_path" in sidePanel) {
+    sidePanel.default_path = replace(sidePanel.default_path);
+  }
   if ("devtools_page" in result) result.devtools_page = replace(result.devtools_page);
   return result;
 }

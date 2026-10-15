@@ -23,6 +23,7 @@
 - Tailwind CSS 4 集成和独立 PostCSS 配置支持。
 - `vite dev` 构建到暂存目录，成功后原子发布并自动 reload。
 - React 与原生 DOM 示例，以及 CLI 的 CSS/Less/Sass、ESLint/Prettier 组合。
+- 网络改写示例：side panel 规则管理、当前标签页主动 debugger 附加、响应 header/body 改写，带命中和失败反馈及独立 Chrome/CDP 验收。
 
 ## 开发 reload 契约
 
@@ -61,6 +62,7 @@
 3. 更完整的 Manifest 类型和 schema diagnostics。
 4. 动态 content script 注册与更多框架 fixture。
 5. 可选 Firefox target 和 browser polyfill。
+6. 将网络改写示例扩展为规则集导入导出、请求阶段改写和更细粒度的响应类型策略。
 
 每个后续能力都需要同步 API 类型、测试、模板验证、公开文档和 Chrome runtime 证据后再标记为支持。
 
@@ -74,3 +76,4 @@
 - [开发自动 reload](features/case-06-extension-auto-reload.md)
 - [Content script 边界](features/case-07-content-reload-boundaries.md)
 - [框架无关 fixture](features/case-13-framework-agnostic.md)
+- [Network rewrite sidebar](features/case-14-network-rewrite-sidebar.md)

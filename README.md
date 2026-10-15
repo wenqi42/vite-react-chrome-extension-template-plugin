@@ -6,6 +6,7 @@
 - `create-vite-react-chrome-extension`：创建 React + TypeScript 扩展模板。
 - `examples/basic-extension`：React 示例。
 - `examples/vanilla-extension`：不依赖 React 的原生 DOM 示例。
+- `examples/network-rewrite-extension`：side panel 网络响应改写示例。
 
 ## 快速开始
 
@@ -99,6 +100,8 @@ export default defineConfig({
 
 `pages` 可以传对象指定入口，也可以传 `false` 关闭自动发现；`pageRoot` 可以修改约定目录。
 
+没有 popup 页面入口时，`action` 可以只配置 `default_title` 或图标，无需声明 popup。例如侧栏项目可在 background 使用 `chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })`，由扩展图标打开侧栏。若存在自动发现的 popup 页面，需移除该入口或调整 `pages` 配置。
+
 ## 插件 API
 
 ```ts
@@ -159,6 +162,7 @@ npm run test
 npm run test:coverage
 npm run build:example
 npm run build:vanilla-example
+npm run build:network-example
 npm run verify:extension -- --dist dist
 ```
 
@@ -184,6 +188,7 @@ packages/vite-plugin-chrome-extension/  插件源码、开发 reload 和测试
 packages/skills/                        AI 接入指南
 examples/basic-extension/               React 示例
 examples/vanilla-extension/             原生 DOM 示例
+examples/network-rewrite-extension/    side panel 网络改写示例
 docs/                                   能力、兼容性和验收文档
 ```
 
@@ -194,6 +199,14 @@ docs/                                   能力、兼容性和验收文档
 - [验收矩阵](docs/acceptance-matrix.md)
 - [自动 reload 说明](docs/features/case-06-extension-auto-reload.md)
 - [Content script 边界](docs/features/case-07-content-reload-boundaries.md)
+- [Network rewrite sidebar](docs/features/case-14-network-rewrite-sidebar.md)
+
+网络改写示例需要先打开 HTTP/HTTPS 网页，在侧栏点击 `Attach active tab`，再保存规则并重新发起请求。`No tab attached` 表示尚未开始拦截，保存规则不会自动附加。已完成的响应不会被追溯修改。
+
+```bash
+npm run build:network-example
+npm run test:network-rewrite -- --chrome /path/to/chrome-for-testing
+```
 
 ## English
 
@@ -210,8 +223,12 @@ Enable Developer mode in `chrome://extensions`, then load `dist` after the first
 
 The plugin discovers `modules/*/index.html`, supports `defineManifest`, `defineBackground`, `defineDynamicResource`, AST-based permission inference, standalone content-script IIFE output, automatic WAR generation, Tailwind CSS 4 integration and build-backed development reload.
 
+An `action` can declare only a title or icon, with no popup. A side panel project can call `chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })` in its background worker to open the panel from the toolbar action. If the project has an automatically discovered popup page, remove that entry or adjust `pages`.
+
 `liveReload` defaults to `true` for `vite dev`. Page-only edits refresh extension pages. Worker, content-script, Manifest or shared dependency edits reload the extension. Failed builds preserve the previous successful output. This is full reload rather than state-preserving HMR; existing content scripts require a host-page refresh. Production builds omit development clients, host permissions and CSP additions.
 
 Use `liveReload: false` for ordinary web preview, middleware mode or a setup that disables Vite WebSocket. Chrome 116+ is required for the development worker heartbeat.
 
 Run `npm run test:dev-reload -- --chrome /path/to/chrome-for-testing` for the real CDP smoke test. HTTP preview is not extension runtime validation.
+
+The Network Rewrite example requires an HTTP/HTTPS page. Click `Attach active tab` in its side panel, save your rules, then issue a new request. `No tab attached` means interception has not started; saving rules does not attach automatically or modify completed responses. Build with `npm run build:network-example` and run its browser acceptance with `npm run test:network-rewrite -- --chrome /path/to/chrome-for-testing`.

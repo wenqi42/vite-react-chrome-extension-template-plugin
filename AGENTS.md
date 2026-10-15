@@ -52,3 +52,6 @@ Report the exact commands, generated-project checks, browser version, runtime co
 - When changing plugin behavior, update the relevant API types, tests, package `files`, README, skills and feature document.
 - Do not publish npm packages, configure remote repositories, force-push or modify global npm links unless explicitly requested.
 - Preserve unrelated user changes and avoid lockfile edits unless dependency changes require them.
+- Before making implementation changes, read and follow
+[docs/spec/SPEC.md](docs/spec/SPEC.md).
+Then read the relevant module acceptance criteria referenced by the matrix.

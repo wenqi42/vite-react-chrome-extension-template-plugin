@@ -12,7 +12,7 @@
     "build": "npm run build:scripts && npm run build --workspaces --if-present",
     "build:scripts": "tsc -p tsconfig.scripts.json",
     "typecheck": "npm run typecheck --workspaces --if-present && tsc -p tsconfig.scripts.json --noEmit",
-    "test": "npm run build && npm run typecheck && npm run test --workspace create-vite-react-chrome-extension && npm run test --workspace @vite-react-chrome-extension/plugin && npm run test:unit",
+    "test": "npm run build && npm run typecheck && npm run test --workspace create-vite-react-chrome-extension && npm run test --workspace @vite-react-chrome-extension/plugin && npm test --workspace @example/network-rewrite-extension && npm run test:unit",
     "create:smoke": "npm run test --workspace create-vite-react-chrome-extension",
     "build:example": "npm run build --workspace @example/basic-extension",
     "build:vanilla-example": "npm run build --workspace @example/vanilla-extension",
@@ -21,7 +21,9 @@
     "test:unit": "vitest run",
     "test:dev-reload": "node scripts/dev-reload-smoke.mjs",
     "test:coverage": "vitest run --coverage",
-    "test:vitest": "npm run test:coverage"
+    "test:vitest": "npm run test:coverage",
+    "build:network-example": "npm run build --workspace @example/network-rewrite-extension",
+    "test:network-rewrite": "node scripts/network-rewrite-smoke.mjs"
   },
   "engines": {
     "node": ">=18"

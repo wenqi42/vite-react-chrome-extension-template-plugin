@@ -10,6 +10,7 @@
 - `manifestReferenceEntries` 收集 popup、worker、页面、图标、content script、WAR 资源引用，并保留 `manifest.<field>` 路径。
 - `diagnoseManifestReferences` 在输出 bundle 中查找文件，也检查 `public/` 和最终 `outDir`。真实 bundle 中找不到的本地引用会使构建失败；空 bundle 的单元测试上下文只产生 warning。
 - 重复的 `manifest.permissions` 会产生 warning，并在生成 manifest 时稳定去重。`autoPermissions: false` 仍然完全关闭 AST 推导。
+- 支持无 popup 的 `action`（如仅 `default_title` 或 `default_icon`）。路径重写保留可选字段缺省状态，不补入 `undefined` 属性；显式非法字段仍然报错。
 
 ## 典型输入
 

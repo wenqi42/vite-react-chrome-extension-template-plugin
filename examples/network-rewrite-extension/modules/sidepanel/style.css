@@ -1,0 +1,19 @@
+:root { color-scheme: light dark; font: 13px/1.4 system-ui, sans-serif; }
+body { min-width: 300px; margin: 0; background: #111827; color: #f9fafb; }
+header, .toolbar, .rule-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+header { padding: 14px; background: #1f2937; position: sticky; top: 0; }
+h1 { margin: 0; font-size: 17px; } p { margin: 3px 0 0; color: #9ca3af; }
+button { border: 0; border-radius: 5px; padding: 7px 10px; color: #111827; background: #a7f3d0; cursor: pointer; }
+button[data-action="remove"] { color: #fecaca; background: #7f1d1d; }
+.notice { padding: 10px 14px; color: #d1d5db; background: #374151; }
+.activity { padding: 5px 14px; border-bottom: 1px solid #374151; }
+#last-error { color: #fca5a5; overflow-wrap: anywhere; }
+button:disabled { opacity: .6; cursor: wait; }
+.toolbar { padding: 10px 14px; border-bottom: 1px solid #374151; }
+.toolbar span, small { color: #9ca3af; }
+#rules { padding: 10px; }
+.rule { margin-bottom: 10px; padding: 10px; border: 1px solid #4b5563; border-radius: 7px; background: #1f2937; }
+label { display: grid; gap: 4px; margin-top: 9px; color: #d1d5db; }
+input, textarea { box-sizing: border-box; width: 100%; border: 1px solid #4b5563; border-radius: 4px; padding: 6px; color: #f9fafb; background: #111827; font: inherit; }
+textarea { min-height: 64px; resize: vertical; font-family: ui-monospace, monospace; font-size: 12px; }
+#status { min-height: 18px; padding: 8px 14px; color: #a7f3d0; } #status[data-error="true"] { color: #fca5a5; }
