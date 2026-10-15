@@ -1,6 +1,6 @@
 # CRXJS compatibility
 
-本项目参考 CRXJS 的 Manifest 驱动构建和开发体验，同时保留自己的权限自动推导、Tailwind 集成和 CLI 模板。
+本项目参考了 [CRXJS](https://github.com/crxjs/chrome-extension-tools) 的 Manifest 驱动构建和开发体验，同时保留自己的权限自动推导、Tailwind 集成和 CLI 模板。
 
 ## 对标矩阵
 
