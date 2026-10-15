@@ -33,7 +33,7 @@ test("Tailwind keeps inline PostCSS plugins and can be disabled", async () => {
   assert.deepEqual(manual.css.postcss, { plugins: [existing] });
 });
 
-function hook<T extends Function>(value: T | { handler: T } | undefined): T {
+function hook<T extends (...args: any[]) => any>(value: T | { handler: T } | undefined): T {
   assert.ok(value);
   return typeof value === "function" ? value : value.handler;
 }

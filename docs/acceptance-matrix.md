@@ -7,6 +7,7 @@
 | 项目 | 标准 | 命令/证据 |
 | --- | --- | --- |
 | TypeScript | 源码、脚本、CLI、插件、测试和示例无 error | `npm run typecheck` |
+| ESLint | 仓库 JS/TS/TSX 源码无 error，独立验证检出能力 | `npm run lint`；[验收标准](spec/acceptance/repository-lint.md) |
 | Unit tests | CLI、Manifest、资源图、reload 核心路径通过 | `npm test` |
 | Coverage | lines/functions/statements/branches 均 ≥90% | `npm run test:coverage` |
 | Build artifacts | Manifest、页面、worker、content script、CSS/WAR 引用闭合 | `npm run verify:extension -- --dist <dist>` |
@@ -40,6 +41,8 @@
 ## 必跑命令
 
 ```bash
+npm run lint
+npm run test:lint
 npm run typecheck
 npm test
 npm run test:coverage

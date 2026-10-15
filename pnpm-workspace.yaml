@@ -1,0 +1,3 @@
+# Dependencies and workspaces are managed by npm and package-lock.json.
+# Let pnpm run existing scripts without automatically reinstalling dependencies.
+verifyDepsBeforeRun: false

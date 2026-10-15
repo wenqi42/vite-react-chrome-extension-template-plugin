@@ -28,6 +28,7 @@ This repository contains a Vite plugin, a project generator, examples and AI int
 Run from the repository root:
 
 ```bash
+npm run lint
 npm run typecheck
 npm test
 npm run test:coverage

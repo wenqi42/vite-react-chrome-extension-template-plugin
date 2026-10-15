@@ -157,6 +157,7 @@ chromeExtension({
 ## 构建与验证
 
 ```bash
+npm run lint
 npm run typecheck
 npm run test
 npm run test:coverage
@@ -165,6 +166,15 @@ npm run build:vanilla-example
 npm run build:network-example
 npm run verify:extension -- --dist dist
 ```
+
+仓库使用 ESLint flat config 检查 JS、MJS、TS 和 TSX，覆盖插件、CLI、模板源码、示例、测试及脚本；依赖、构建输出、覆盖率与临时缓存不参与检查。ESLint 工具链要求 Node.js 18.18 或更高版本。
+
+```bash
+npm run lint:fix   # 应用可自动修复的规则
+npm run test:lint  # 验证问题检出、源码范围和忽略规则
+```
+
+也可使用 `pnpm run lint` 执行同一检查。依赖仍通过 npm 安装；pnpm 的运行兼容配置禁用了脚本执行前自动安装依赖。仓库自身的检查与 CLI 生成项目的可选 `--eslint` 配置独立。
 
 真实扩展运行验证：
 
@@ -200,6 +210,7 @@ docs/                                   能力、兼容性和验收文档
 - [自动 reload 说明](docs/features/case-06-extension-auto-reload.md)
 - [Content script 边界](docs/features/case-07-content-reload-boundaries.md)
 - [Network rewrite sidebar](docs/features/case-14-network-rewrite-sidebar.md)
+- [仓库 ESLint](docs/features/case-15-repository-lint.md)
 
 网络改写示例需要先打开 HTTP/HTTPS 网页，在侧栏点击 `Attach active tab`，再保存规则并重新发起请求。`No tab attached` 表示尚未开始拦截，保存规则不会自动附加。已完成的响应不会被追溯修改。
 
@@ -211,6 +222,8 @@ npm run test:network-rewrite -- --chrome /path/to/chrome-for-testing
 ## English
 
 This repository provides a Vite plugin and CLI for Chrome Manifest V3 extensions.
+
+For repository development, run `npm run lint` (or `pnpm run lint`), `npm run lint:fix` for automatic fixes, and `npm run test:lint` to verify lint detection and file coverage. The flat config checks JS/MJS/TS/TSX in packages, template sources, examples, tests and scripts, excluding dependencies, build output, coverage and temporary caches. The ESLint toolchain requires Node.js 18.18+. Keep installing dependencies with npm; the pnpm compatibility setting disables automatic dependency installation before running scripts. Repository lint is independent of the generated project's optional `--eslint` setup.
 
 ```bash
 npx create-vite-react-chrome-extension create my-extension --eslint --prettier

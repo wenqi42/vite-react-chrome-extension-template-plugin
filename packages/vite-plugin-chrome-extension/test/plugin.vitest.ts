@@ -23,7 +23,7 @@ import chromeExtension, {
   validateManifest,
 } from '../index.js'
 
-function hook<T extends Function>(value: T | { handler: T } | undefined): T {
+function hook<T extends (...args: any[]) => any>(value: T | { handler: T } | undefined): T {
   if (!value) throw new Error('Expected Vite plugin hook to be defined')
   return typeof value === 'function' ? value : value.handler
 }
