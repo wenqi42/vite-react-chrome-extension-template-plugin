@@ -1,58 +1,54 @@
-# Agent development guide / AI 开发指南
+# Repository maintenance guide
 
-## Scope / 范围
+This repository contains a Vite plugin, a project generator, examples and AI integration guides for Chrome Manifest V3 extensions. Keep public documentation in sync with the implementation and answer users in their language.
 
-维护 npm workspaces 中的 Chrome MV3 plugin、CLI 和 React TS 模板。先读 README，再读对应源码。回答使用用户语言。
-Maintain the plugin, CLI and TS template. Read current source before relying on documentation.
+## Ownership
 
-## Ownership / 文件职责
+- `packages/vite-plugin-chrome-extension/index.ts`: public plugin API, Manifest generation, source-entry discovery, permission inference and build diagnostics.
+- `packages/vite-plugin-chrome-extension/dev.ts`: development watch build, staging/publish flow, reload protocol and development-only Manifest changes.
+- `packages/vite-plugin-chrome-extension/chrome-permission-map.json`: reviewed namespace-to-permission map.
+- `packages/create-chrome-extension/bin/create.ts`: CLI validation, prompts, template copy and optional tooling.
+- `packages/create-chrome-extension/template/`: generated React + TypeScript project.
+- `packages/skills/`: distributable AI instructions; these are documentation sources, not runtime packages.
+- `examples/`: build and runtime fixtures.
 
-- `packages/vite-plugin-chrome-extension/index.ts`: build-only manifest emission; `dist/index.js` is generated for publishing.
-- `packages/vite-plugin-chrome-extension/chrome-permission-map.json`: reviewed API namespace → permission data.
-- `scripts/generate-chrome-permission-map.ts`: official-doc fetcher and map generator; run through the root build.
-- `packages/vite-plugin-chrome-extension/index.ts`: public API source; its declaration is generated into `dist/index.d.ts`.
-- `packages/create-chrome-extension/bin/create.ts`: prompts, validation, copy and optional tools; `dist/bin/create.js` is the published bin.
-- `packages/create-chrome-extension/template/`: generated TS application with `modules/*/index.html` page routes, not a workspace.
-- `packages/create-chrome-extension/optional/`: conditional ESLint/Prettier files.
-- `packages/create-chrome-extension/test/`: Node test runner CLI tests.
-- `examples/basic-extension/`: minimal TypeScript fixture, not the default template.
-- `packages/skills/`: distributable AI instructions, not runtime packages.
+## Stable contracts
 
-## Guardrails / 开发约束
+1. Manifest generation targets Chrome MV3. It validates common fields and local references; it is not a complete Chrome schema validator.
+2. `manifest` is the final configuration layer. Objects merge recursively, arrays replace whole values, and explicit permissions merge with inferred permissions.
+3. Permission inference uses Babel AST member expressions. Do not replace it with substring matching. `autoPermissions: false` remains the manual escape hatch; host permissions stay manual.
+4. `defineBackground`, source-entry path rewriting, standalone content-script output, automatic WAR collection, Tailwind integration and `defineDynamicResource` are public behavior.
+5. `vite dev` defaults to build-backed reload. It publishes only successful staged builds, preserves the last successful output on failure, and cleans watchers and temporary directories on close. `liveReload: false` disables this layer.
+6. Development reload is full reload. It does not preserve UI state or replace content scripts already injected into a host page. Keep this limitation explicit in public docs.
+7. The template keeps TypeScript, `@types/chrome`, ESLint, Prettier and CSS/Less/Sass choices explicit and independent. Do not force optional tools into every project.
+8. The CLI rejects non-empty targets and must not leave partial output after cancellation or invalid input.
 
-1. 只改请求范围；保留用户未提交修改，不擅自覆盖、reset 或删除。Inspect git status; preserve unrelated changes.
-2. 不确定影响目标的决策先问。Do not silently expand scope.
-3. 默认 TS、`@types/chrome`、ESLint/Prettier 独立 opt-in。Keep these template contracts.
-4. 不自动发布 npm、配置远程仓库或强推。Global links modify the user's npm prefix; explain them and check existing links first.
-5. CLI 拒绝覆盖非空目标；取消输入不得创建半成品。Keep tests for all four tool combinations and invalid input.
-6. 包尚未发布时优先本地 link；不要把机器绝对路径写入正式模板。Do not assume registry availability.
-7. 默认不要修改 lockfile；依赖发生变化时用 npm 更新并检查 diff。Do not overwrite user package-name edits.
+## Verification
 
-## Known implementation limits / 真实边界
+Run from the repository root:
 
-Plugin discovers `modules/*/index.html` and adds those pages as Vite inputs. It emits the Manifest; background/content script compilation remains an explicit project concern.
-Plugin uses Babel AST member-expression analysis for `chrome.*` / `browser.*` permission inference. Never replace it with substring matching. Explicit `manifest.permissions` is merged with inferred permissions; `autoPermissions: false` is the manual escape hatch. Unknown APIs warn; host permissions remain manual.
-Template Rollup configuration compiles TS background separately and uses page routes for popup/options.
-Tailwind CSS 4 is the default styling system. The plugin integrates `@tailwindcss/postcss` in dev and build; template and example import `tailwindcss` in their CSS entry. Preserve inline PostCSS plugins and use `tailwind: false` for independently managed PostCSS configurations.
-`contentScripts` only assigns manifest data. Plain content scripts require non-ESM-compatible outputs.
-`outDir` plugin option currently only changes the log; actual output is Vite `build.outDir`.
-Validation only checks MV3 and nonempty name/version. Do not describe this as complete Chrome validation.
-Vite dev is a web preview, not extension hot reload. HTTP rendering is not extension runtime acceptance.
+```bash
+npm run typecheck
+npm test
+npm run test:coverage
+npm run build:example
+npm run build:vanilla-example
+npm run verify:extension -- --dist <dist>
+```
 
-## Validation / 验证
+For development reload, use Chrome for Testing with Developer mode enabled:
 
-From the root run `npm run test`. Root build compiles TypeScript sources before running workspace builds; it does not typecheck the generated template.
-For template changes, also create a new external project via the CLI, install dependencies, then run `npm run typecheck`, `npm run build`, and selected `lint` / `format:check`.
-Follow README's tested global `npm link` sequence before npm install in that project.
-Never reuse or erase a user's nonempty project for a smoke test.
+```bash
+npm run test:dev-reload -- --chrome <chrome-for-testing>
+```
 
-Verify `dist/manifest.json`, popup assets and `background.js` exist. For runtime acceptance load `dist` in Chrome and inspect popup, worker, API interactions and errors.
-Report exactly what ran, failures, test directory, browser verification limits and remaining blockers.
+Report the exact commands, generated-project checks, browser version, runtime contexts and any unverified boundary. HTTP preview does not prove extension runtime behavior.
 
-## Docs and skills / 文档同步
+## Documentation rules
 
-Keep Chinese and English README instructions aligned with current code.
-When API permissions change, update the generator/fallback map, tests, README boundaries and the package files list together.
-Update relevant skill when CLI flags or plugin behavior changes.
-Use lowercase kebab-case names and valid YAML frontmatter for skills.
-Read `packages/skills/chrome-extension-create/SKILL.md` for scaffolding and `packages/skills/chrome-extension-plugin/SKILL.md` for integration.
+- Public README and skills describe supported behavior and user-facing limits. Do not include temporary paths, agent names, internal debugging history or abandoned approaches.
+- Feature documents record the contract, usage, validation command and stable limitations. Do not treat a local evidence path or a single browser version as a permanent API guarantee.
+- Update Chinese and English README sections together.
+- When changing plugin behavior, update the relevant API types, tests, package `files`, README, skills and feature document.
+- Do not publish npm packages, configure remote repositories, force-push or modify global npm links unless explicitly requested.
+- Preserve unrelated user changes and avoid lockfile edits unless dependency changes require them.

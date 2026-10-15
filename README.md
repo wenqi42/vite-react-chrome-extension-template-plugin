@@ -1,385 +1,217 @@
 # Vite React Chrome Extension
 
-[中文](#中文指南) | [English](#english-guide)
+一个面向 Chrome Manifest V3 的 Vite 工具集，包含：
 
-## 中文指南
-
-React + TypeScript Chrome Manifest V3 工具集。推荐 Node.js 22 LTS 或更高版本、npm 10+；当前验证环境为 Node 24 / npm 11。根包声明的最低版本不代表所有可选工具在该版本上都经过测试。
-
-一个可发布到 npm 的多 packages 项目，包含：
-
-- `@vite-react-chrome-extension/plugin`：把 Vite/React 项目输出为 Chrome Manifest V3 扩展目录。
-- `create-vite-react-chrome-extension`：通过 `npx create-vite-react-chrome-extension create my-extension` 创建模板项目。
-- `examples/basic-extension`：可直接构建、加载到 Chrome 的示例。
+- `@vite-react-chrome-extension/plugin`：生成 Manifest、编译页面/background/content script，并提供开发自动 reload。
+- `create-vite-react-chrome-extension`：创建 React + TypeScript 扩展模板。
+- `examples/basic-extension`：React 示例。
+- `examples/vanilla-extension`：不依赖 React 的原生 DOM 示例。
 
 ## 快速开始
 
-以下 `npx` 命令适用于包发布到 npm 之后；当前本地体验见下一节。
-
 ```bash
-npx create-vite-react-chrome-extension create my-extension
+npx create-vite-react-chrome-extension create my-extension --eslint --prettier
 cd my-extension
 npm install
 npm run dev
+```
+
+开发时等待首次构建完成，在 `chrome://extensions` 开启开发者模式并加载 `dist`。修改页面、background 或 content script 后，扩展会根据变更范围刷新页面或重载扩展。生产构建使用：
+
+```bash
 npm run build
 ```
 
-也可以省略目录名，按提示输入项目名称，并分别用 `y/n` 选择 ESLint 和 Prettier（默认不启用）：
+## 尚未发布时的本地使用
 
 ```bash
-npx create-vite-react-chrome-extension create
-```
-
-自动化场景可显式指定开关，跳过对应问题：
-
-```bash
-npx create-vite-react-chrome-extension create my-extension --eslint --prettier
-npx create-vite-react-chrome-extension create my-extension --no-eslint --no-prettier
-```
-
-### 发布前本地体验
-
-推荐通过全局 link 体验，不需要发布 npm。下面命令中的 `/absolute/path/to/...` 请替换为你实际的绝对路径。
-
-```bash
-# 在仓库根目录安装依赖并注册全局命令与插件
 npm install
 npm run build
 npm link --workspace create-vite-react-chrome-extension --workspace @vite-react-chrome-extension/plugin
+```
 
-# 切到仓库外一个已存在的空闲目录
-cd /absolute/path/to/playground
+在仓库外的空目录中创建项目，并在安装依赖前链接本地插件：
+
+```bash
 create-vite-react-chrome-extension create my-extension --eslint --prettier
 cd my-extension
-
-# 必须先 link 尚未发布的插件，避免 npm 去 registry 查找它
 npm link @vite-react-chrome-extension/plugin --save
 npm install
-npm run build
-npm run lint
-npm run format:check
 ```
 
-真正提供全局 bin 的是 CLI package，不是它内部的 `template/`。
-`--save` 会把生成项目的插件依赖保存为本地 `file:` 路径；这是本地验证配置，不应作为公开模板提交。
-切换 Node 版本可能改变全局 npm prefix，需要重新 link。若命令不可见，检查 `npm prefix -g` 对应的 `bin` 是否在 PATH 中。
-撤销全局注册可执行 `npm uninstall -g create-vite-react-chrome-extension @vite-react-chrome-extension/plugin`；不要删除本地源码。
+`npm link` 只用于本地验证，不要把机器路径提交到模板或发布配置。
 
-也可构建后直接调用 CLI：
+## 创建模板
 
-在仓库根目录运行：
+CLI 支持以下选项：
 
-```bash
-npm run build
-node packages/create-chrome-extension/dist/bin/create.js create
+```text
+create [directory]
+--eslint | --no-eslint
+--prettier | --no-prettier
+--css | --less | --sass
 ```
 
-例如创建 `my-extension` 后，先把未发布的插件依赖指向本地包：
+ESLint、Prettier 和样式预处理器可以独立选择。CLI 不会覆盖非空目录；取消输入、非法名称、未知参数和冲突参数都会直接失败。
 
-```bash
-cd my-extension
-npm pkg set 'devDependencies.@vite-react-chrome-extension/plugin=file:../packages/vite-plugin-chrome-extension'
-npm install
-npm run build
-```
+模板默认提供：
 
-上面的相对路径适用于项目创建在仓库根目录内的情况；其他位置请使用插件包的绝对路径。
+- `modules/popup/index.tsx`
+- `modules/options/index.tsx`
+- `modules/background/background.ts`
+- Tailwind CSS 4
+- `@types/chrome`
+- `npm run dev`、`npm run build`、`npm run typecheck`
 
-### 模板语言与开发工具
+## 接入现有 Vite 项目
 
-默认样式使用 Tailwind CSS 4。插件内置 `@tailwindcss/postcss` 编译，支持 Vite dev 和 build；每个模块在自己的目录中维护入口和样式，例如 `modules/popup/index.tsx`、`modules/popup/popup.css`：
+```ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import chromeExtension, { defineBackground, defineManifest } from '@vite-react-chrome-extension/plugin'
 
-```css
-@import "tailwindcss" source(".");
-```
-
-在 TSX 中直接使用 `className="bg-slate-900 p-6 text-slate-50"` 等 utility classes。`source(".")` 从当前模块目录扫描组件；其他目录可通过 `@source` 添加。已有独立 PostCSS 配置的项目请设置 `chromeExtension({ tailwind: false })` 并自行接入 Tailwind，避免重复配置。默认接入会保留传入 Vite 的内联 PostCSS plugins。
-
-默认模板使用 TypeScript：每个扩展入口都位于 `modules/<entry>/`，例如 `modules/popup/index.tsx`、`modules/options/index.tsx` 和 `modules/background/background.ts`，配置为 `vite.config.ts`。
-CLI 会询问样式文件格式，支持 `css`、`less` 和 `sass`；也可以使用 `--css`、`--less` 或 `--sass` 跳过询问。选择 Less/Sass 时，模板中的模块样式文件会使用对应后缀，并加入对应预处理器依赖。
-后台通过 Rollup 单独编译为 `dist/background.js`；`npm run build` 会先进行类型检查。
-`@types/chrome` 已在 `devDependencies` 中默认安装，且 `tsconfig.json` 显式启用 `chrome` 类型。
-
-- 选择 ESLint：生成 flat config，支持 TypeScript、React Hooks 和 React Refresh 检查，提供 `npm run lint` / `npm run lint:fix`。
-- 选择 Prettier：生成 `.prettierrc.json`、`.prettierignore`，提供 `npm run format` / `npm run format:check`。
-- 两者独立选择；未选择的工具不会加入依赖、配置或 npm scripts。
-- `npm run dev` 用于普通网页预览；Chrome API 需要在加载构建产物的扩展上下文中使用。
-
-构建后的 `dist` 可以在 Chrome 的 `chrome://extensions` 中打开「开发者模式」后，通过「加载已解压的扩展程序」加载。
-
-## 在已有 Vite 项目中使用
-
-```bash
-npm install -D @vite-react-chrome-extension/plugin
-```
-
-```js
-// vite.config.ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import chromeExtension from "@vite-react-chrome-extension/plugin";
+const manifest = defineManifest(({ mode }) => ({
+  name: `My Extension (${mode})`,
+  version: '1.0.0',
+  permissions: ['storage'],
+}))
 
 export default defineConfig({
+  base: './',
   plugins: [
     react(),
     chromeExtension({
-      manifest: {
-        name: "My Extension",
-        description: "A React Chrome extension",
-        permissions: ["storage", "activeTab"],
-      },
-      background: "background.js",
+      manifest,
+      background: defineBackground('src/background.ts'),
     }),
   ],
-});
+})
 ```
 
-插件在 Vite 的 `generateBundle` 阶段生成 `manifest.json`，并自动发现 `modules/*/index.html` 作为页面入口。默认模板中的 `modules/popup` 和 `modules/options` 会分别构建为 `dist/popup/index.html` 与 `dist/options/index.html`。
-此处的 `background.js` 必须存在于最终产物中：简单 JS 可以放到 `public/background.js` 原样复制；TypeScript 必须像默认模板一样显式配置 Rollup 入口。
+插件默认发现 `modules/*/index.html`：
 
-约定页面名到 Manifest 的映射：
+| 入口 | Manifest 字段 |
+| --- | --- |
+| `modules/popup/index.html` | `action.default_popup` |
+| `modules/options/index.html` | `options_ui.page` |
+| `modules/sidepanel/index.html` | `side_panel.default_path` |
+| `modules/devtools/index.html` | `devtools_page` |
 
-- `modules/popup/index.html` → `action.default_popup`
-- `modules/options/index.html` → `options_ui.page`
-- `modules/sidepanel/index.html` → `side_panel.default_path`
-- `modules/devtools/index.html` → `devtools_page`
+`pages` 可以传对象指定入口，也可以传 `false` 关闭自动发现；`pageRoot` 可以修改约定目录。
 
-其他 `modules/<name>/index.html` 也会作为独立页面入口构建，但需要通过 `manifest` 显式配置它在 Chrome 中的用途。
-
-### TypeScript background 配置
-
-在上面的 `defineConfig` 中加入（工作目录为 Vite 项目根目录）：
-
-```ts
-base: './',
-build: {
-  rollupOptions: {
-    input: { background: 'modules/background/background.ts' },
-    output: {
-      entryFileNames: (chunk) =>
-        chunk.name === 'background' ? 'background.js' : 'assets/[name]-[hash].js',
-    },
-  },
-},
-```
-
-不要同时保留 `public/background.js` 和同名 TS 构建输出。
-已有项目可运行 `npm install -D @types/chrome`，并在 tsconfig 的 `compilerOptions.types` 中合并加入 `"chrome"`。
-
-### Plugin 配置与当前边界
-
-| 选项             | 用途                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------- |
-| `manifest`       | 最终优先级最高，深度合并 Manifest 字段；对象递归合并，数组整体替换                    |
-| `pages`          | 默认自动发现 `modules/*/index.html`；传对象可显式指定入口，传 `false` 可关闭          |
-| `pageRoot`       | 修改约定目录，默认为 `modules`                                                        |
-| `popup`          | shorthand，覆盖 `action.default_popup`，但会被 `manifest.action.default_popup` 再覆盖 |
-| `background`     | 设置输出 JS 路径及 `background.type: 'module'`                                        |
-| `contentScripts` | 覆盖 `content_scripts` 数组，不负责编译脚本                                           |
-| `outDir`         | 当前只影响日志显示，真正输出目录请配置 Vite `build.outDir`                            |
-| `assetFileNames` | 生产构建的 Rollup 静态资源命名模式，默认 `assets/css/[name][extname]`                 |
-
-合并优先级从低到高为：约定页面生成值 → `popup` / `background` / `contentScripts` shorthand → `manifest`。
-对象字段递归合并，数组整体使用后者替换；例如传入 `manifest.action.default_popup` 会覆盖 `modules/popup/index.html` 的默认映射。
-
-### API 权限自动推导
-
-构建期间 plugin 会使用 Babel AST 解析项目源码中的 `chrome.*` 和 `browser.*` 成员访问，不使用字符串搜索。
-例如：
-
-```ts
-chrome.tabs.query({ active: true });
-chrome.history.search({ text: "vite" });
-```
-
-会自动推导：
-
-```json
-{
-  "permissions": ["history", "tabs"]
-}
-```
-
-当前映射数据位于 `packages/vite-plugin-chrome-extension/chrome-permission-map.json`。
-固定生成脚本为：
-
-```bash
-npm run generate:permissions
-```
-
-脚本从 Chrome 官方 API 目录抓取 namespace 页面，提取文档中的 permission 描述，并以仓库内维护的 fallback map 兜底。
-生成结果应该经过人工 review 后再提交，因为 Chrome API 文档里的权限描述可能包含版本、平台、企业策略和上下文限制。
-
-自动推导的边界：
-
-- `chrome.action`、`chrome.runtime`、`chrome.storage` 等不需要声明权限的 API 不会添加无意义权限。
-- `chrome.scripting` 只能推导 `scripting`；目标页面的 host permissions、`activeTab` 等无法从 API 调用安全决定，需要用户配置。
-- `tabs`、`webRequest` 等 API 可能还依赖 host permissions，plugin 不会猜测 URL 范围。
-- 未知 namespace 会产生构建 warning，不会自动生成危险权限。
-- 如果用户显式传入 `manifest.permissions`，它会和 AST 自动推导出的权限去重合并；这样用户可以补充当前映射遗漏的权限，同时保留代码实际使用的权限。
-- 如果需要完全手动控制权限，再设置 `autoPermissions: false`。
-
-如需完全关闭自动推导：
+## 插件 API
 
 ```ts
 chromeExtension({
-  autoPermissions: false,
-});
+  manifest,
+  pages,
+  pageRoot: 'modules',
+  popup: 'modules/popup/index.html',
+  background: 'background.js',
+  contentScripts: [{
+    matches: ['https://example.com/*'],
+    js: ['src/content.ts'],
+    css: ['src/content.css'],
+  }],
+  autoPermissions: true,
+  tailwind: true,
+  assetFileNames: 'assets/[name]-[hash][extname]',
+  liveReload: true,
+})
 ```
 
-重要限制：
+- `manifest`：最终 Manifest 覆盖层，支持对象、Promise 和 Vite 环境工厂。
+- `background`：字符串表示稳定输出路径；`defineBackground()` 会把 TS/JS source entry 纳入构建。
+- `contentScripts`：数组替换 `content_scripts`；source entry 默认输出 standalone IIFE。传 `{ standalone: false }` 时由项目自行管理输出。
+- `autoPermissions`：默认开启，使用 Babel AST 分析 `chrome.*` / `browser.*`。`false` 时完全关闭自动补充。
+- `tailwind`：默认开启 Tailwind CSS 4；已有独立 PostCSS 配置时设为 `false`。
+- `liveReload`：默认开启，仅对 `vite dev` 生效；设为 `false` 时只运行普通 Vite 预览。
+- `defineDynamicResource()`：声明包含 `<dynamic_resource>` 的 WAR 分组。
 
-- 插件只在 build 执行；`vite dev` 是普通网页预览，不提供扩展自动重载或 Chrome API mock。
-- 自动发现和打包页面入口，但不自动发现/打包 background、content scripts；它们仍需使用 `public/` 或自定义 Rollup 入口。
-- Manifest 检查仅覆盖 MV3、非空 name/version，不是完整 Chrome schema 校验，也不检查所有引用文件是否存在。
-- Content scripts 必须引用实际生成的文件；普通 content script 不是 ESM，不能直接指向 TS 或包含顶层 import 的 Vite chunk。简单场景可使用 `public/content.js`，复杂场景需独立打包为兼容脚本。
-- 使用最小权限；不要把密钥、远程执行脚本或不必要的 host permissions 放入扩展。
+插件会把 Manifest 中可解析的 background、content script 和页面 source entry 纳入 Vite 输入，并在输出阶段回写真实文件名。content script 的 CSS、静态资源和动态 chunk 会合并到 `web_accessible_resources`。
 
-### Chrome 验证
+## 自动权限
 
-1. `npm run build`，确认 `dist/manifest.json` 和其引用文件存在。
-2. 打开 `chrome://extensions`，开启开发者模式，加载已解压的扩展程序，选择 `dist`。
-3. 从扩展工具栏打开 popup，在扩展卡片检查 Service Worker 和错误信息。
-4. 修改后重新构建，在扩展管理页点刷新，再重新打开 popup。
+插件按 AST 成员访问推导权限，不使用字符串搜索。显式 `manifest.permissions` 会和推导结果去重合并，host permissions、`activeTab` 以及依赖上下文的权限仍需手动声明。
 
-HTTP 预览页面成功不等于 Chrome 扩展运行验证成功；要单独确认权限、Service Worker、Chrome API 和 CSP。
+`chrome.runtime` 的生命周期、普通消息和 reload 不需要额外权限；`connectNative`、`sendNativeMessage` 等 native messaging API 仍需显式声明 `nativeMessaging`。未知 API namespace 只产生 warning，不会自动加入危险权限。
 
-## 开发说明
+## 开发自动 reload
+
+`vite dev` 会把扩展构建到 Vite 的 `build.outDir`，先写入暂存目录，成功后原子更新最终目录：
+
+- 仅页面及其独占依赖变化：扩展页面调用 `location.reload()`，worker 保持运行。
+- background、content script、Manifest 或共享依赖变化：调用 `chrome.runtime.reload()`，Chrome 会关闭已有扩展页面，重新打开即可看到新版本。
+- 构建失败或后置插件失败：不发送 reload，保留上一份成功产物。
+- 开发 worker 每 20 秒发送 WebSocket 心跳，支持 Chrome 116+ 的 MV3 worker 生命周期。
+- 开发代码全部打包到本地扩展；Vite WebSocket 只传递版本事件。
+- 服务器在相同 host/port 重启后会重新连接；端口或协议改变时需要重新加载开发扩展。
+
+这属于完整 reload，不提供 React/Vue 状态保留，也不替换已经注入到宿主页面的 content script。content script 修改后刷新匹配的宿主网页；`world: 'MAIN'` 仍遵循相同边界。
+
+开发 Manifest 会临时加入开发服务器 host permission 和 CSP `connect-src`；正式 `vite build` 不包含这些字段、reload client 或开发 worker。开发目录不要直接发布。
+
+## 构建与验证
 
 ```bash
-npm install
+npm run typecheck
 npm run test
+npm run test:coverage
 npm run build:example
+npm run build:vanilla-example
+npm run verify:extension -- --dist dist
 ```
 
-仓库源码统一使用 TypeScript。根目录 `tsconfig.json` 提供 Node 构建的共享配置，脚本、CLI、插件及测试通过 `tsc` 编译后执行；React 页面和后台通过 Vite 构建。插件的 `.d.ts` 自动生成，发布入口只指向 `dist` 中的 JavaScript。首次本地 link 前需运行 `npm run build`；修改运行包源码后也需重新构建。可选 ESLint 配置为 `eslint.config.ts`，生成项目通过 `jiti` 加载。
+真实扩展运行验证：
 
-本项目刻意不把 Chrome 运行时 API 包装成自有抽象：用户可以直接使用官方 `chrome.*` API，并通过 `@types/chrome` 获得类型提示。
+1. 构建或启动 `npm run dev`。
+2. 在 Chrome 开发者模式加载 `dist`。
+3. 打开 popup，检查 Service Worker 和错误信息。
+4. 修改代码，观察页面 reload 或扩展重载。
+5. content script 修改后刷新匹配的宿主网页。
 
-### 目录与 AI 协作
+HTTP 预览只能证明页面渲染，不能替代扩展上下文、权限、Service Worker、CSP 或 content script 验证。完整开发验收脚本：
+
+```bash
+npm run test:dev-reload -- --chrome /path/to/chrome-for-testing
+```
+
+## 项目结构
 
 ```text
-packages/
-  create-chrome-extension/       CLI、template、optional 配置、测试
-  vite-plugin-chrome-extension/  ESM plugin 与类型声明
-  skills/                       AI 使用指南（不是 npm runtime package）
-examples/basic-extension/       TS 最小示例，不是默认模板
-AGENTS.md                       后续开发约束与验证清单
+packages/create-chrome-extension/       CLI、模板和可选工具
+packages/vite-plugin-chrome-extension/  插件源码、开发 reload 和测试
+packages/skills/                        AI 接入指南
+examples/basic-extension/               React 示例
+examples/vanilla-extension/             原生 DOM 示例
+docs/                                   能力、兼容性和验收文档
 ```
 
-AI 使用指南：
+- [插件接入 Skill](packages/skills/chrome-extension-plugin/SKILL.md)
+- [模板创建 Skill](packages/skills/chrome-extension-create/SKILL.md)
+- [能力路线图](docs/feature-roadmap.md)
+- [CRXJS 对标](docs/crxjs-compatibility.md)
+- [验收矩阵](docs/acceptance-matrix.md)
+- [自动 reload 说明](docs/features/case-06-extension-auto-reload.md)
+- [Content script 边界](docs/features/case-07-content-reload-boundaries.md)
 
-- [模板创建 skill](packages/skills/chrome-extension-create/SKILL.md)
-- [Plugin 接入 skill](packages/skills/chrome-extension-plugin/SKILL.md)
+## English
 
-`packages/skills` 是可分发的 skill 源文件，不会自动成为已安装 skill。可让 AI 直接读取；需要自动触发时，把相应目录安装到客户端支持的 skills 根目录，例如 `.comate/skills/<skill-name>/SKILL.md` 或 `.codex/skills/<skill-name>/SKILL.md`，再重新加载客户端。不要把两个 skill 嵌套安装在另一个 skill 内。
-
-## English guide
-
-### Overview and prerequisites
-
-This npm-workspaces repository contains a build-only Vite plugin that emits a Chrome Manifest V3 manifest, a CLI that scaffolds React + TypeScript extensions, and a minimal TypeScript example.
-Use Node.js 22 LTS or newer and npm 10+. The verified local environment is Node 24 / npm 11; the root engine minimum is not a compatibility guarantee for all optional tools.
-
-### Local development without publishing
-
-From the repository root:
+This repository provides a Vite plugin and CLI for Chrome Manifest V3 extensions.
 
 ```bash
-npm install
-npm run build
-npm link --workspace create-vite-react-chrome-extension --workspace @vite-react-chrome-extension/plugin
-```
-
-In a separate existing playground directory:
-
-```bash
-create-vite-react-chrome-extension create my-extension --eslint --prettier
-cd my-extension
-npm link @vite-react-chrome-extension/plugin --save
-npm install
-npm run build
-npm run lint
-npm run format:check
-```
-
-Link the **CLI package**, not its inner template directory. Link the unpublished plugin before running `npm install` in the generated project.
-`--save` records a local `file:` dependency for testing; do not ship that machine-specific path in the public template.
-Check `npm prefix -g` and PATH if the global command is missing. Switching Node installations may require linking again.
-To unregister the global links, run `npm uninstall -g create-vite-react-chrome-extension @vite-react-chrome-extension/plugin`; keep the source directories.
-
-After the packages are published, users can instead run:
-
-```bash
-npx create-vite-react-chrome-extension create my-extension
+npx create-vite-react-chrome-extension create my-extension --eslint --prettier
 cd my-extension
 npm install
-npm run build
+npm run dev
 ```
 
-Omit the directory to enter a project name interactively. ESLint and Prettier are independent y/n questions, both defaulting to no.
-For unattended use, specify both switches: `--eslint` or `--no-eslint`, and `--prettier` or `--no-prettier`.
-The CLI rejects non-empty targets, invalid names, unknown flags and conflicting switches.
+Enable Developer mode in `chrome://extensions`, then load `dist` after the first successful development build. Use `npm run build` for production output.
 
-### Generated project
+The plugin discovers `modules/*/index.html`, supports `defineManifest`, `defineBackground`, `defineDynamicResource`, AST-based permission inference, standalone content-script IIFE output, automatic WAR generation, Tailwind CSS 4 integration and build-backed development reload.
 
-Tailwind CSS 4 is the default styling system. The extension plugin integrates `@tailwindcss/postcss` for both Vite dev and build. Each module owns its entry and stylesheet, for example `modules/popup/index.tsx` and `modules/popup/popup.css`, which contains `@import "tailwindcss" source(".");`. Use utility classes in that module and add `@source` for components outside it. Set `tailwind: false` when managing your own external PostCSS configuration; inline PostCSS plugins are preserved.
-The CLI asks for `css`, `less` or `sass`; use `--css`, `--less` or `--sass` for non-interactive creation. The selected suffix is applied to each module stylesheet and the matching preprocessor dependency is added.
+`liveReload` defaults to `true` for `vite dev`. Page-only edits refresh extension pages. Worker, content-script, Manifest or shared dependency edits reload the extension. Failed builds preserve the previous successful output. This is full reload rather than state-preserving HMR; existing content scripts require a host-page refresh. Production builds omit development clients, host permissions and CSP additions.
 
-- `modules/popup/index.tsx`、`modules/options/index.tsx`: React page entries.
-- `modules/popup/popup.css`、`modules/options/options.css`: page styles; CLI can generate `.less` or `.sass`.
-- `modules/background/background.ts`: separately compiled module service worker.
-- `vite.config.ts`: explicit popup and background Rollup entries.
-- `@types/chrome`: default development dependency, enabled in tsconfig.
-- `build`: runs TypeScript checks followed by Vite.
-- Optional ESLint: `lint`, `lint:fix`, flat config with TS and React rules.
-- Optional Prettier: `format`, `format:check`, config and ignore file.
+Use `liveReload: false` for ordinary web preview, middleware mode or a setup that disables Vite WebSocket. Chrome 116+ is required for the development worker heartbeat.
 
-### Using the plugin in an existing project
-
-Install `@vite-react-chrome-extension/plugin` as a dev dependency once published, or use the local linking flow above. Install `@types/chrome` and add `"chrome"` to the existing tsconfig types list.
-Use `react()` alongside `chromeExtension({ manifest: { name: 'My Extension', version: '0.1.0' }, background: 'background.js' })` in Vite's `plugins`.
-See the full configuration examples in the Chinese section above and `packages/create-chrome-extension/template/vite.config.ts`.
-
-The `background` option is an **output path**, not a source compiler entry. Configure `modules/background/background.ts` as a Rollup input with a stable `background.js` output, or place a plain JS worker at `public/background.js`. Do not use both.
-
-Page entries follow `modules/<page>/index.html`; `popup`, `options`, `sidepanel` and `devtools` receive their corresponding Manifest V3 fields. Other page names are built but require an explicit manifest mapping.
-
-During build, the plugin parses `chrome.*` and `browser.*` member expressions with Babel AST and appends permissions from the checked-in API map. It does not use substring matching.
-
-Options:
-
-- `manifest`: manifest overrides; defaults to MV3, version `0.1.0`, and uses `modules/popup/index.html` when that route exists.
-- `popup`: overrides `action.default_popup`.
-- `background`: sets `service_worker` and `type: 'module'`.
-- `contentScripts`: assigns the manifest array; does not compile scripts.
-- `autoPermissions`: enables AST-based permission inference, default `true`.
-- `outDir`: currently affects logging only. Use Vite's `build.outDir` for actual output.
-- `assetFileNames`: Rollup output pattern for generated assets; defaults to `assets/css/[name][extname]`.
-
-Merge precedence is convention-generated values, then shorthand options, then `manifest`. Objects are recursively merged and arrays are replaced as whole values, so explicit user manifest data always wins.
-An explicit `manifest.permissions` array is merged with inferred permissions, so users can add permissions not covered by the current map. Set `autoPermissions: false` for complete manual control. Host permissions and context-dependent requirements remain manual.
-
-### Limitations and validation
-
-The plugin runs only during builds. It does not provide extension HMR, API mocks, automatic background/content-script discovery, hash rewriting, or full manifest/reference validation.
-Plain content scripts cannot use top-level ESM imports: use a compatible plain JS file from `public/`, or a separate compatible bundle. Do not reference raw TS files in the manifest.
-Grant only required permissions and never embed secrets.
-
-Build, open `chrome://extensions`, enable Developer mode, and load the generated `dist` as an unpacked extension. Open its popup and inspect its service worker and errors. After edits, rebuild and reload the extension.
-An HTTP preview verifies rendering only; it does not verify Chrome APIs, permissions, service workers or extension CSP.
-
-### Contributing and AI assistance
-
-```bash
-npm run test
-npm run create:smoke
-npm run build:example
-```
-
-All repository implementation sources are TypeScript. Shared Node compiler settings live in root `tsconfig.json`. Scripts, CLI, plugin and tests are compiled with `tsc` before execution; Vite builds the React pages and background. Plugin declarations are generated, and runtime package entries point to compiled `dist` JavaScript. Build before local linking and rebuild after source changes. The optional `eslint.config.ts` is loaded with `jiti`.
-
-The root suite checks TypeScript sources, the example build and CLI/plugin scenarios. It does **not** replace an independent generated-project install/build/lint/format check or a real Chrome runtime test.
-Follow [AGENTS.md](AGENTS.md) for maintenance.
-Read [CLI skill](packages/skills/chrome-extension-create/SKILL.md) and [plugin skill](packages/skills/chrome-extension-plugin/SKILL.md) for AI-assisted usage.
-These directories are skill sources, not automatically installed skills or npm packages. Install each as a direct child of your client's supported skills root if automatic discovery is desired.
+Run `npm run test:dev-reload -- --chrome /path/to/chrome-for-testing` for the real CDP smoke test. HTTP preview is not extension runtime validation.

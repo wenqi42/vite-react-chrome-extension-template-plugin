@@ -7,5 +7,6 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["index.ts", "test/**/*.ts"]
+  "include": ["index.ts", "test/**/*.ts"],
+  "exclude": ["test/**/*.vitest.test.ts"]
 }

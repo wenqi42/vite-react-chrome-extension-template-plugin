@@ -12,10 +12,16 @@
     "build": "npm run build:scripts && npm run build --workspaces --if-present",
     "build:scripts": "tsc -p tsconfig.scripts.json",
     "typecheck": "npm run typecheck --workspaces --if-present && tsc -p tsconfig.scripts.json --noEmit",
-    "test": "npm run build && npm run typecheck && npm run test --workspace create-vite-react-chrome-extension && npm run test --workspace @vite-react-chrome-extension/plugin",
+    "test": "npm run build && npm run typecheck && npm run test --workspace create-vite-react-chrome-extension && npm run test --workspace @vite-react-chrome-extension/plugin && npm run test:unit",
     "create:smoke": "npm run test --workspace create-vite-react-chrome-extension",
     "build:example": "npm run build --workspace @example/basic-extension",
-    "generate:permissions": "npm run build:scripts && node dist/scripts/generate-chrome-permission-map.js"
+    "build:vanilla-example": "npm run build --workspace @example/vanilla-extension",
+    "generate:permissions": "npm run build:scripts && node dist/scripts/generate-chrome-permission-map.js",
+    "verify:extension": "npm run build:scripts && node dist/scripts/verify-extension-build.js",
+    "test:unit": "vitest run",
+    "test:dev-reload": "node scripts/dev-reload-smoke.mjs",
+    "test:coverage": "vitest run --coverage",
+    "test:vitest": "npm run test:coverage"
   },
   "engines": {
     "node": ">=18"
@@ -23,7 +29,9 @@
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^24.7.2",
+    "@vitest/coverage-v8": "^2.1.9",
     "cheerio": "^1.2.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
   }
 }

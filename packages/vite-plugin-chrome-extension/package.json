@@ -1,7 +1,7 @@
 {
   "name": "@vite-react-chrome-extension/plugin",
   "version": "0.1.0",
-  "description": "Vite plugin for building React projects as Chrome Manifest V3 extensions.",
+  "description": "Vite plugin for building Chrome Manifest V3 extensions.",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -24,13 +24,16 @@
     "dist/index.js",
     "dist/index.js.map",
     "dist/index.d.ts",
+    "dist/dev.js",
+    "dist/dev.js.map",
+    "dist/dev.d.ts",
     "dist/chrome-permission-map.json"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node dist/build.js",
     "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && tsc -p tsconfig.test.json && node --test dist/test/*.test.js"
+    "test": "npm run build && tsc -p tsconfig.test.json && node --test dist/test/plugin.test.js"
   },
   "license": "MIT"
 }

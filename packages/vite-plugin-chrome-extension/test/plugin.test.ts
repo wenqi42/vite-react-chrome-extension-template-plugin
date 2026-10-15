@@ -5,8 +5,12 @@ import type { Plugin, ResolvedConfig } from "vite";
 import type { PluginContext, TransformPluginContext, EmittedFile } from "rollup";
 import chromeExtension, {
   collectPermissions,
+  defineDynamicResource,
+  defineManifest,
   deepMerge,
+  manifestEntryReferences,
   pagesToManifest,
+  rewriteManifestReferences,
 } from "../index.js";
 
 test("Tailwind keeps inline PostCSS plugins and can be disabled", async () => {
@@ -161,4 +165,58 @@ test("autoPermissions can be disabled", () => {
   );
   const output = manifest(plugin);
   assert.equal("permissions" in output, false);
+});
+
+test("manifest helpers support CRXJS-style factories and dynamic resources", async () => {
+  const manifest = defineManifest(({ mode }) => ({
+    name: `Factory ${mode}`,
+    version: "1.0.0",
+  }));
+  assert.equal(typeof manifest, "function");
+  assert.deepEqual(await manifest({ command: "build", mode: "production" }), {
+    name: "Factory production",
+    version: "1.0.0",
+  });
+  assert.deepEqual(defineDynamicResource({ use_dynamic_url: true }), {
+    matches: ["http://*/*", "https://*/*"],
+    use_dynamic_url: true,
+    resources: ["<dynamic_resource>"],
+  });
+});
+
+test("manifest source entries are discoverable and rewritten to output chunks", () => {
+  const manifest = {
+    name: "Entries",
+    version: "1.0.0",
+    background: { service_worker: "src/background.ts" },
+    content_scripts: [{ matches: ["https://example.com/*"], js: ["src/content.ts"] }],
+  };
+  assert.deepEqual(manifestEntryReferences(manifest), [
+    "src/background.ts",
+    "src/content.ts",
+  ]);
+  assert.deepEqual(
+    rewriteManifestReferences(
+      manifest,
+      "/workspace",
+      {
+        "background.js": {
+          type: "chunk",
+          fileName: "background.js",
+          facadeModuleId: "/workspace/src/background.ts",
+        },
+        "content.js": {
+          type: "chunk",
+          fileName: "content.js",
+          facadeModuleId: "/workspace/src/content.ts",
+        },
+      },
+    ),
+    {
+      name: "Entries",
+      version: "1.0.0",
+      background: { service_worker: "background.js" },
+      content_scripts: [{ matches: ["https://example.com/*"], js: ["content.js"] }],
+    },
+  );
 });

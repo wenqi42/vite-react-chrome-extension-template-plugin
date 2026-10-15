@@ -47,6 +47,9 @@ const fallbackPermissions: Record<string, string[]> = {
   printing: ["printing"],
   privacy: ["privacy"],
   readingList: ["readingList"],
+  // Lifecycle/messaging/reload do not require a namespace permission.
+  // Native messaging is method-specific and remains an explicit permission.
+  runtime: [],
   scripting: ["scripting"],
   sessions: ["sessions"],
   sidePanel: ["sidePanel"],

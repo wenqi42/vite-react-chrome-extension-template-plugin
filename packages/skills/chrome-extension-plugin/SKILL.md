@@ -1,72 +1,78 @@
 ---
 name: chrome-extension-plugin
-description: "Integrate @vite-react-chrome-extension/plugin into Vite React apps and configure MV3 manifests, popup, background and content scripts. Use for plugin setup, generated extension path debugging, TypeScript background configuration or build validation; not for unrelated Vite plugins."
+description: "Integrate the Vite Chrome extension plugin into an existing project, configure Manifest V3 entries and permissions, and validate build or development reload behavior."
 ---
 
-# Integrate the Chrome extension plugin
+# Chrome extension plugin
 
-## Inspect first
+Use this skill when adding `@vite-react-chrome-extension/plugin` to an existing Vite project or diagnosing its generated extension output.
 
-Read current plugin `index.ts` / generated `dist/index.d.ts`, project Vite config, manifest and package.json.
-Determine the Vite root, existing entries, output directory, permissions and target pages.
-Preserve existing configuration. Confirm missing consequential requirements.
-Use the sibling create skill for a new project.
+## Inspect the project
 
-## Install and configure
+Read the Vite config, package.json, tsconfig and existing Manifest before editing. Identify the project root, `build.outDir`, page inputs, background source, content scripts, permissions, `publicDir` and any existing PostCSS configuration.
 
-For unpublished code use README's npm link procedure. Never assume npm install can find an unpublished package.
-For published code install plugin as a dev dependency.
-Add `@types/chrome` as a dev dependency and merge `"chrome"` into tsconfig types without discarding existing entries.
+Keep the existing Vite plugins and inputs. Use `@types/chrome` for TypeScript types and add `chrome` to `compilerOptions.types` without removing existing entries.
 
-The plugin also parses `chrome.*` and `browser.*` member expressions with Babel AST during build and infers permissions from `chrome-permission-map.json`. It never infers host URL patterns. Use `autoPermissions: false` to disable inference.
-
-Add `chromeExtension({ manifest: { name: 'My Extension', version: '0.1.0' }, background: 'background.js' })` to plugins alongside `react()`.
-
-By convention, create page entries at `modules/<page>/index.html`. The plugin discovers these entries and builds them independently:
-
-- `popup` → `action.default_popup`
-- `options` → `options_ui.page`
-- `sidepanel` → `side_panel.default_path`
-- `devtools` → `devtools_page`
-
-Other names are built as pages but require an explicit `manifest` mapping. Use `pages: false` to disable discovery or `pages: { popup: 'custom/popup.html' }` for explicit entries.
-
-For TS background, merge this shape into Vite config (relative inputs assume project-root working directory):
+## Basic configuration
 
 ```ts
-base: './',
-build: {
-  rollupOptions: {
-    input: { background: 'src/background.ts' },
-    output: {
-      entryFileNames: chunk =>
-        chunk.name === 'background' ? 'background.js' : 'assets/[name]-[hash].js',
-    },
-  },
-},
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import chromeExtension, { defineBackground } from '@vite-react-chrome-extension/plugin'
+
+export default defineConfig({
+  base: './',
+  plugins: [
+    react(),
+    chromeExtension({
+      manifest: { name: 'My Extension', version: '1.0.0' },
+      background: defineBackground('src/background.ts'),
+    }),
+  ],
+})
 ```
 
-Do not overwrite existing multi-page entries. Plain JS can instead use `public/background.js`; never create both outputs with the same name.
+`defineBackground(entry, { fileName })` compiles a source entry with a stable service-worker path. The string form `background: 'background.js'` remains available for an existing output or `public/background.js` fallback.
 
-## API truth and pitfalls
+The plugin discovers `modules/<page>/index.html` and maps `popup`, `options`, `sidepanel` and `devtools` to their conventional Manifest fields. Use `pages` for explicit entries, `pageRoot` for a different convention directory, or `pages: false` to disable discovery.
 
-- `manifest`: final authority over convention and shorthand config. Objects deep-merge; arrays are replaced as a whole, except `manifest.permissions`, which is deduplicated with inferred API permissions.
-- `autoPermissions`: AST-based API permission inference, default `true`. An explicit `manifest.permissions` array is merged with inferred permissions; set this to `false` for complete manual control.
-- `pages`: auto-discovered page entries, explicit entry map, or `false`.
-- `pageRoot`: custom convention directory, default `modules`.
-- `popup`: output-relative HTML path. The convention uses `popup/index.html`; an alternate page must actually be built.
-- `background`: output-relative JS path, forces module worker type. Does not compile TS by itself.
-- `contentScripts`: replaces the manifest array. Does not create, compile or hash-rewrite scripts.
-- Plain content scripts cannot contain top-level ESM imports; use static compatible JS or an independently configured compatible bundle.
-- `outDir` currently only affects logging. Set Vite `build.outDir` for real output.
-- `assetFileNames` controls generated asset names and defaults to `assets/css/[name][extname]`.
-- No built-in extension HMR, Chrome API mock, automatic background/content-script compilation or full manifest schema validation.
-- Use least permissions. Keep secrets and remotely executed code out of the extension.
-- Review generated permissions, especially `tabs`, `webRequest` and `scripting`; add `host_permissions` or `activeTab` manually when the API context needs them.
+## Manifest and content scripts
 
-## Acceptance
+`defineManifest` accepts an object, Promise or `(env) => manifest` factory. Explicit `manifest` values are the final configuration layer. Existing source paths in background, content scripts and page fields are added to Vite inputs and rewritten to generated output paths.
 
-Run project typecheck/build and any configured lint/format checks.
-Inspect manifest.json, popup HTML/assets, worker and every configured content-script path in output.
-Load unpacked dist in Chrome, open popup and inspect worker registration/errors when runtime verification is available.
-If only a static build or HTTP preview was checked, explicitly state that Chrome runtime is unverified.
+Content-script source entries are emitted as standalone IIFEs by default. `contentScripts: { standalone: false }` leaves output ownership to the project. Imported CSS, static assets and dynamic chunks are collected into `web_accessible_resources`; use `defineDynamicResource()` for the `<dynamic_resource>` placeholder.
+
+## Permissions
+
+Permission inference parses `chrome.*` and `browser.*` member expressions with Babel AST and reads the checked-in permission map. It does not infer host patterns, `activeTab` or context-dependent permissions. Explicit permissions are deduplicated and merged. Set `autoPermissions: false` for complete manual control. Native messaging methods still require explicit `nativeMessaging`.
+
+## Development reload
+
+`liveReload` defaults to `true` for `vite dev`:
+
+- page-only edits refresh extension pages;
+- worker, content-script, Manifest or shared dependency edits reload the extension;
+- failed builds preserve the last successful output and send no reload event;
+- the development worker sends a 20-second WebSocket heartbeat for Chrome 116+;
+- the watcher builds to staging and publishes only after the complete build succeeds.
+
+This is full reload rather than state-preserving HMR. An already-injected content script runs its new version after the matching host page is refreshed. Set `liveReload: false` for ordinary web preview, middleware mode or disabled Vite WebSocket.
+
+Enable Developer mode in `chrome://extensions`, load `build.outDir` and run the CDP smoke when runtime evidence is needed:
+
+```bash
+npm run test:dev-reload -- --chrome /path/to/chrome-for-testing
+```
+
+A successful HTTP preview is not extension runtime validation. Report popup, worker, content-script, permission, CSP and browser-version evidence separately.
+
+## Validation
+
+```bash
+npm run typecheck
+npm run build
+npm run verify:extension -- --dist dist
+npm run test:coverage
+```
+
+Inspect `manifest.json`, page HTML, background output, content-script files, CSS/assets and WAR entries. Production `vite build` must not contain the development client, development host permission or development CSP additions.

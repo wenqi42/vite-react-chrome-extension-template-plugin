@@ -26,6 +26,8 @@ for (const eslint of [false, true]) {
       assert.ok(existsSync(path.join(dir, 'modules/options/options.less')))
       assert.equal(pkg.devDependencies.less, '^4.4.0')
       assert.ok(existsSync(path.join(dir, 'vite.config.ts')))
+      const tsconfig = JSON.parse(readFileSync(path.join(dir, 'tsconfig.json'), 'utf8'))
+      assert.equal(tsconfig.compilerOptions.preserveSymlinks, true)
       assert.equal(Boolean(pkg.devDependencies.eslint), eslint)
       assert.equal(Boolean(pkg.devDependencies.prettier), prettier)
       assert.equal(existsSync(path.join(dir, 'eslint.config.ts')), eslint)

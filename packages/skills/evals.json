@@ -4,19 +4,61 @@
       "id": 1,
       "skill": "chrome-extension-create",
       "prompt": "用这个模板创建一个带 ESLint、不带 Prettier 的 TS 扩展",
-      "expected": "Ask for destination if missing; use create with --eslint --no-prettier; verify TS and chrome types; do not run absent format scripts."
+      "expected": "Use create with --eslint --no-prettier, preserve optional tooling choices, run typecheck/build/lint, and do not run a missing format script."
     },
     {
       "id": 2,
       "skill": "chrome-extension-create",
       "prompt": "我还没发 npm，帮我用 npm link 在另一个目录验证模板",
-      "expected": "Link CLI and plugin globally, create outside repo, link plugin with --save before install; validate build and selected tools; report global links."
+      "expected": "Build and link the CLI and plugin locally, link the plugin before install in an empty external directory, validate the generated project, and report the local link."
     },
     {
       "id": 3,
       "skill": "chrome-extension-plugin",
       "prompt": "给现有 Vite React 项目接入 Chrome extension plugin，并配置 background",
-      "expected": "Preserve config, distinguish output path from TS input, configure stable background output, verify manifest and clearly separate HTTP preview from Chrome runtime acceptance."
+      "expected": "Preserve existing Vite config, use defineBackground for a source entry or explain the string/public fallback, then verify Manifest, worker output and extension runtime separately from HTTP preview."
+    },
+    {
+      "id": 4,
+      "skill": "chrome-extension-plugin",
+      "prompt": "用 defineManifest 为不同 mode 配置 background 和 content script",
+      "expected": "Use a Vite env factory, keep explicit manifest precedence, inspect rewritten source paths, standalone content output and WAR entries, and distinguish full reload from state-preserving HMR."
+    },
+    {
+      "id": 5,
+      "skill": "chrome-extension-plugin",
+      "prompt": "为 content script 声明动态可访问资源并做 Chrome 验收",
+      "expected": "Use defineDynamicResource, verify WAR files and matches in dist, then load the unpacked extension in Chrome and report runtime evidence separately."
+    },
+    {
+      "id": 6,
+      "skill": "chrome-extension-plugin",
+      "prompt": "构建时报 manifest background 或 content script 引用不存在，如何定位并验收？",
+      "expected": "Use the field-qualified diagnostic, fix the source/public path, run verify:extension and state whether Chrome unpacked/CDP runtime was verified."
+    },
+    {
+      "id": 7,
+      "skill": "chrome-extension-plugin",
+      "prompt": "现有项目有 TypeScript service worker，想让插件自动编译并固定输出 background.js",
+      "expected": "Use defineBackground('src/background.ts'), preserve explicit manifest precedence, verify background.js and service-worker registration, and avoid duplicate public/background.js output."
+    },
+    {
+      "id": 8,
+      "skill": "chrome-extension-plugin",
+      "prompt": "不使用 React，如何验证这个插件的框架无关能力？",
+      "expected": "Use the vanilla fixture or equivalent Vite project, run typecheck/build/verifier, inspect content IIFE/CSS/WAR paths, and report Chrome runtime evidence separately."
+    },
+    {
+      "id": 9,
+      "skill": "chrome-extension-plugin",
+      "prompt": "启动开发自动刷新，确认语法错误不刷新扩展，修复后恢复",
+      "expected": "Enable Developer mode, run the CDP smoke or equivalent, verify page-only reload, full extension reload, staged failure preservation, recovery, heartbeat and production/liveReload:false isolation."
+    },
+    {
+      "id": 10,
+      "skill": "chrome-extension-create",
+      "prompt": "模板 npm run dev 后，为什么 content script 没有原地更新？",
+      "expected": "Explain full extension reload versus an already-injected host document, instruct the user to refresh the matching host page, and do not claim state-preserving or content-script HMR."
     }
   ]
 }

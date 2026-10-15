@@ -1,0 +1,11 @@
+#vanilla-extension-badge {
+  position: fixed;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2147483647;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #fff;
+  background: #2563eb;
+  font: 12px/1.2 system-ui, sans-serif;
+}
