@@ -22,6 +22,7 @@ This repository contains a Vite plugin, a project generator, examples and AI int
 6. Default development updates use full reload, without UI state preservation or replacement of already injected content scripts. Opt-in `contentScripts: { hmr: true }` uses the client lifecycle for supported ISOLATED/MAIN entries, explicit data retention and disposal. It does not provide framework Fast Refresh or automatic cleanup of arbitrary scripts. Unsupported entries and shared/background/Manifest changes retain full reload; keep these boundaries explicit.
 7. The template keeps TypeScript, `@types/chrome`, ESLint, Prettier and CSS/Less/Sass choices explicit and independent. Do not force optional tools into every project.
 8. The CLI rejects non-empty targets and must not leave partial output after cancellation or invalid input.
+9. Using CodeGraph to get the target code instead of `grep` to reduce false positives if CodeGraph is existed.
 
 ## Verification
 
