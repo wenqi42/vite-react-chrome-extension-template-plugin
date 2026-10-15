@@ -8,7 +8,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json-summary'],
-      include: ['packages/vite-plugin-chrome-extension/index.ts', 'packages/vite-plugin-chrome-extension/dev.ts'],
+      include: ['packages/vite-plugin-chrome-extension/index.ts', 'packages/vite-plugin-chrome-extension/dev.ts', 'packages/vite-plugin-chrome-extension/doctor.ts', 'packages/vite-plugin-chrome-extension/client.ts', 'packages/vite-plugin-chrome-extension/content-hmr.ts', 'scripts/acceptance-core.mjs'],
       exclude: ['**/dist/**', '**/test/**', '**/*.d.ts'],
       thresholds: {
         lines: 90,

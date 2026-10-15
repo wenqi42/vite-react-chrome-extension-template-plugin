@@ -21,7 +21,7 @@
 - `defineDynamicResource` 动态资源占位符。
 - Babel AST 权限推导、显式权限合并、未知 namespace warning 和 `autoPermissions: false`。
 - Tailwind CSS 4 集成和独立 PostCSS 配置支持。
-- `vite dev` 构建到暂存目录，成功后原子发布并自动 reload。
+- `vite dev` 构建到暂存目录，成功后原子发布并自动 reload；content script 可显式 opt-in 原地 HMR。
 - React 与原生 DOM 示例，以及 CLI 的 CSS/Less/Sass、ESLint/Prettier 组合。
 - 网络改写示例：side panel 规则管理、当前标签页主动 debugger 附加、响应 header/body 改写，带命中和失败反馈及独立 Chrome/CDP 验收。
 
@@ -38,26 +38,9 @@
 
 这是真实的完整 reload，不保留组件状态，也不替换已注入到宿主网页的 content script。
 
-## CRXJS 对标状态
-
-| 能力 | 状态 |
-| --- | --- |
-| Manifest 驱动构建 | 已支持 |
-| 多页面与路径回写 | 已支持 |
-| Background source entry | 已支持 |
-| Content script IIFE 与资源图 | 已支持 |
-| WAR 自动生成 | 已支持 |
-| Manifest/reference diagnostics | 已支持 |
-| 页面和 background 自动 reload | 已支持 |
-| Content script 原地 HMR | 未支持，刷新宿主网页后生效 |
-| 保留状态的页面 HMR | 未支持 |
-| Firefox target | 未支持，当前以 Chrome MV3 为目标 |
-| 完整 Chrome schema 校验 | 未支持 |
-| 自定义 CRXJS hooks | 未支持 |
-
 ## 后续方向
 
-1. Content script 的可释放更新机制，覆盖 isolated world 和 MAIN world。
+1. 更多框架对生命周期清理和显式 data 保留的适配。
 2. 页面状态保留的 HMR 适配。
 3. 更完整的 Manifest 类型和 schema diagnostics。
 4. 动态 content script 注册与更多框架 fixture。
@@ -68,7 +51,6 @@
 
 ## 相关文档
 
-- [CRXJS 对标](crxjs-compatibility.md)
 - [验收矩阵](acceptance-matrix.md)
 - [Content script 编译](features/case-03-content-script-entry.md)
 - [WAR 资源图](features/case-04-web-accessible-resources.md)

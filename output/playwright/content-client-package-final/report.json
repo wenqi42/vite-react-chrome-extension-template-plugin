@@ -1,0 +1,107 @@
+{
+  "status": "PASS",
+  "project": "/var/folders/8p/n__w0c5s17l0qv88hly60m9r0000gn/T/content-client-pack-verifier-Ew82Cg",
+  "tarball": "/Users/wenqi/Desktop/extension-template-plugin/.cache/acceptance/final-evidence/packages/vite-react-chrome-extension-plugin-0.1.0.tgz",
+  "checks": [
+    {
+      "name": "external tarball installation, client declarations and Vite browser build",
+      "status": "PASS"
+    },
+    {
+      "name": "packaged production lifecycle mounts and explicitly stops in both worlds under strict CSP",
+      "status": "PASS"
+    }
+  ],
+  "errors": [],
+  "stages": [
+    {
+      "command": [
+        "npm",
+        "install",
+        "--no-audit",
+        "--no-fund"
+      ],
+      "exitCode": 0,
+      "output": "\nadded 38 packages in 5s\n"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exitCode": 0,
+      "output": "\n> typecheck\n> tsc --noEmit\n\n"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "output": "\n> build\n> vite build\n\nvite v6.4.4 building for production...\ntransforming...\n✓ 3 modules transformed.\nrendering chunks...\n[plugin vite-plugin-chrome-extension] [chrome-extension] Manifest generated for /private/var/folders/8p/n__w0c5s17l0qv88hly60m9r0000gn/T/content-client-pack-verifier-Ew82Cg/dist\ncomputing gzip size...\ndist/chrome-extension-diagnostics.json  0.11 kB │ gzip: 0.10 kB\ndist/manifest.json                      0.68 kB │ gzip: 0.28 kB\ndist/assets/client-BX2dBmdK.js          0.84 kB │ gzip: 0.49 kB\ndist/content/main-ts.js                 1.79 kB │ gzip: 0.89 kB\ndist/content/isolated-ts.js             1.82 kB │ gzip: 0.89 kB\n✓ built in 58ms\n"
+    }
+  ],
+  "tarballSha256": "5df7ec73b320257996d63e824dfc184ecb9516a3f8ce4a01231b22ad0bd39963",
+  "installedPackage": {
+    "name": "@vite-react-chrome-extension/plugin",
+    "version": "0.1.0",
+    "description": "Vite plugin for building Chrome Manifest V3 extensions.",
+    "type": "module",
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "bin": {
+      "chrome-extension-doctor": "./dist/doctor.js"
+    },
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./doctor": {
+        "types": "./dist/doctor.d.ts",
+        "import": "./dist/doctor.js"
+      },
+      "./client": {
+        "types": "./dist/client.d.ts",
+        "import": "./dist/client.js"
+      }
+    },
+    "peerDependencies": {
+      "vite": "^5.0.0 || ^6.0.0 || ^7.0.0"
+    },
+    "dependencies": {
+      "@tailwindcss/postcss": "^4.1.0",
+      "@babel/parser": "^7.28.4",
+      "@babel/types": "^7.28.4"
+    },
+    "files": [
+      "dist/index.js",
+      "dist/index.js.map",
+      "dist/index.d.ts",
+      "dist/dev.js",
+      "dist/dev.js.map",
+      "dist/dev.d.ts",
+      "dist/content-hmr.js",
+      "dist/content-hmr.js.map",
+      "dist/content-hmr.d.ts",
+      "dist/client.js",
+      "dist/client.js.map",
+      "dist/client.d.ts",
+      "dist/doctor.js",
+      "dist/doctor.js.map",
+      "dist/doctor.d.ts",
+      "dist/chrome-permission-map.json"
+    ],
+    "scripts": {
+      "build": "tsc -p tsconfig.build.json && node dist/build.js",
+      "prepack": "npm run build",
+      "typecheck": "tsc -p tsconfig.json --noEmit",
+      "test": "npm run build && tsc -p tsconfig.test.json && node --test dist/test/plugin.test.js"
+    },
+    "license": "MIT"
+  },
+  "browserVersion": "151.0.7922.34"
+}

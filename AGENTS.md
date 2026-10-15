@@ -19,7 +19,7 @@ This repository contains a Vite plugin, a project generator, examples and AI int
 3. Permission inference uses Babel AST member expressions. Do not replace it with substring matching. `autoPermissions: false` remains the manual escape hatch; host permissions stay manual.
 4. `defineBackground`, source-entry path rewriting, standalone content-script output, automatic WAR collection, Tailwind integration and `defineDynamicResource` are public behavior.
 5. `vite dev` defaults to build-backed reload. It publishes only successful staged builds, preserves the last successful output on failure, and cleans watchers and temporary directories on close. `liveReload: false` disables this layer.
-6. Development reload is full reload. It does not preserve UI state or replace content scripts already injected into a host page. Keep this limitation explicit in public docs.
+6. Default development updates use full reload, without UI state preservation or replacement of already injected content scripts. Opt-in `contentScripts: { hmr: true }` uses the client lifecycle for supported ISOLATED/MAIN entries, explicit data retention and disposal. It does not provide framework Fast Refresh or automatic cleanup of arbitrary scripts. Unsupported entries and shared/background/Manifest changes retain full reload; keep these boundaries explicit.
 7. The template keeps TypeScript, `@types/chrome`, ESLint, Prettier and CSS/Less/Sass choices explicit and independent. Do not force optional tools into every project.
 8. The CLI rejects non-empty targets and must not leave partial output after cancellation or invalid input.
 
@@ -41,7 +41,12 @@ For development reload, use Chrome for Testing with Developer mode enabled:
 
 ```bash
 npm run test:dev-reload -- --chrome <chrome-for-testing>
+npm run test:content-hmr -- --chrome <chrome-for-testing>
+npm run test:doctor -- --chrome <chrome-for-testing>
+npm run test:acceptance -- --chrome <chrome-for-testing>
 ```
+
+`test:acceptance` without `--case` runs all 36 style/tool/Vite combinations from packed artifacts in external projects. A selected case is focused evidence only. Include `client.ts`, `content-hmr.ts`, `doctor.ts` and acceptance planning in core coverage; do not hide new runtime logic behind an old module's coverage result. Diagnostic provenance describes active build modules, and host permissions remain manual except development-only permissions explicitly needed by the enabled update layer.
 
 Report the exact commands, generated-project checks, browser version, runtime contexts and any unverified boundary. HTTP preview does not prove extension runtime behavior.
 

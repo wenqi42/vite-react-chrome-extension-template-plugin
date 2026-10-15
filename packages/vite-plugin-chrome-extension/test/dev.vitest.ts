@@ -5,6 +5,7 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { build, loadConfigFromFile } from 'vite'
+import type { OutputBundle } from 'rollup'
 import {
   DEV_CLIENT_FILE,
   DEV_HELLO_EVENT,
@@ -168,6 +169,17 @@ describe('CASE-06 dev output', () => {
     expect(manifest.content_security_policy.extension_pages).not.toContain('unsafe-eval')
   })
 
+  it('accepts Rollup generateBundle write mode and records content-only state', () => {
+    const { plugin, bundle, emitFile } = outputPlugin({
+      content_scripts: [{ matches: ['https://example.com/*'], js: ['content.js'] }],
+    }, {
+      'content.js': { type: 'chunk', fileName: 'content.js', code: 'void 0', imports: [], dynamicImports: [], referencedFiles: [], modules: {}, contentHmrLifecycle: false },
+    })
+    expect(() => hook(plugin.generateBundle).call({ emitFile }, {}, bundle, true)).not.toThrow()
+    expect(JSON.parse(bundle['manifest.json'].source).background).toBeDefined()
+  })
+
+
   it('preserves worker modules and custom CSP, replacing a connect-src none restriction only in dev', () => {
     const { bundle, run } = outputPlugin({
       background: { service_worker: 'worker.js', type: 'module' },
@@ -227,6 +239,14 @@ describe('CASE-06 dev output', () => {
     server.config.webSocketToken = ''
     server.config.server = { hmr: { port: 8000 } }
     expect(resolveReloadConnection(server, state).socketUrl).toBe('ws://localhost:8000/')
+    server.config.server = { hmr: true }
+    expect(resolveReloadConnection(server, state).socketUrl).toBe('ws://localhost:5173/')
+    server.config.server = { hmr: { host: 'localhost', clientPort: 0, protocol: 'ws', path: '' }, https: false }
+    expect(resolveReloadConnection(server, state).httpOrigin).toBe('http://localhost:5173')
+    server.config.server = { hmr: { host: 'localhost', port: 0 }, https: {} }
+    expect(resolveReloadConnection(server, state).socketUrl).toContain('wss://localhost:5173')
+    server.config.server = { https: undefined }
+    expect(resolveReloadConnection(server, state).httpOrigin).toBe('http://localhost:5173')
     server.httpServer.address = () => null
     expect(() => resolveReloadConnection(server, state)).toThrow('middleware mode is unsupported')
   })
@@ -263,6 +283,10 @@ describe('CASE-06 build-backed server lifecycle', () => {
     middleware()({ url: DEV_STATUS_PATH, headers: { origin: `chrome-extension://${'a'.repeat(32)}` } }, response, next)
     expect(response.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store')
     expect(JSON.parse(response.end.mock.calls[0][0])).toMatchObject({ error: 'Syntax error', revision: 0 })
+    middleware()({ url: DEV_STATUS_PATH, headers: { origin: 'https://untrusted.example' } }, response, next)
+    middleware()({ url: DEV_STATUS_PATH, headers: {} }, response, next)
+    middleware()({ url: `${DEV_STATUS_PATH}?probe=1`, headers: { origin: 'null' }, method: 'POST' }, response, next)
+    expect(response.end).toHaveBeenCalled()
     buildWatcher.emit('event', { code: 'START' })
     ws.emit(DEV_HELLO_EVENT, {}, client)
     expect(client.send).not.toHaveBeenCalled()
@@ -274,6 +298,26 @@ describe('CASE-06 build-backed server lifecycle', () => {
     expect(buildWatcher.close).toHaveBeenCalled()
     expect(ws.listenerCount(DEV_HELLO_EVENT)).toBe(0)
     expect(server.watcher.listenerCount('change')).toBe(0)
+  })
+
+  it('stages each configured Rollup output when Vite uses an output array', async () => {
+    const { server } = fakeServer()
+    const buildWatcher = Object.assign(new EventEmitter(), { close: vi.fn(async () => {}) })
+    vi.mocked(build).mockResolvedValue(buildWatcher as any)
+    const cleanup = await configureExtensionDevServer(server, {
+      build: {
+        rollupOptions: {
+          output: [{ format: 'es' }, { format: 'iife', entryFileNames: 'bundle.js' }],
+        },
+      },
+    }, {}, {}, () => ({ name: 'vite-plugin-chrome-extension' }))
+    await flush()
+    const config: any = vi.mocked(build).mock.calls.at(-1)?.[0]
+    expect(config.build.rollupOptions.output).toEqual([
+      expect.objectContaining({ format: 'es', dir: expect.stringContaining('chrome-extension-dev-') }),
+      expect.objectContaining({ format: 'iife', entryFileNames: 'bundle.js', dir: expect.stringContaining('chrome-extension-dev-') }),
+    ])
+    await cleanup()
   })
 
   it('reloads config files in serve mode, starts after listening and rebuilds new pages/public files', async () => {
@@ -321,6 +365,27 @@ describe('CASE-06 build-backed server lifecycle', () => {
 })
 
 describe('CASE-06 runtime client', () => {
+  it('embeds the content update coordinator when the worker receives managed entries', () => {
+    const contentConnection = {
+      ...connection,
+      contentScripts: [{
+        id: 'content-fixture',
+        js: ['content.js'],
+        css: '',
+        hash: 'fixture-hash',
+        matches: ['https://example.com/*'],
+        excludeMatches: [],
+        includeGlobs: [],
+        excludeGlobs: [],
+        world: 'ISOLATED' as const,
+        allFrames: false,
+      }],
+    }
+    const source = reloadClientSource(contentConnection, true)
+    expect(source).toContain('const updateContent =')
+    expect(source).toContain('Array.isArray(next.contentScripts)')
+  })
+
   it('ignores initial/unrelated/malformed state, heartbeats and reloads once on a newer successful revision', () => {
     const sockets: any[] = []
     class Socket extends EventEmitter {
@@ -342,15 +407,28 @@ describe('CASE-06 runtime client', () => {
     socket.emit('open')
     heartbeat[0]()
     expect(socket.send).toHaveBeenCalledTimes(2)
+    socket.readyState = 0
+    heartbeat[0]()
+    expect(socket.send).toHaveBeenCalledTimes(2)
+    socket.readyState = 1
     expect(socket.url).toBe(connection.socketUrl)
     const message = (data: unknown) => socket.emit('message', { data: typeof data === 'string' ? data : JSON.stringify(data) })
     message('invalid json')
     message({ type: 'connected' })
+    message({ type: 'other-event', data: {} })
     message({ type: 'custom', event: DEV_RELOAD_EVENT })
     message({ type: 'custom', event: DEV_RELOAD_EVENT, data: { session: connection.session, revision: 1 } })
     expect(reload).not.toHaveBeenCalled()
     message({ type: 'custom', event: DEV_RELOAD_EVENT, data: { session: connection.session, revision: 2, reloadExtension: false } })
     expect(reload).not.toHaveBeenCalled()
+    message({ type: 'custom', event: DEV_RELOAD_EVENT, data: { session: connection.session, revision: 2, contentOnly: false, reloadExtension: false } })
+    expect(reload).not.toHaveBeenCalled()
+    message({ type: 'custom', event: DEV_RELOAD_EVENT, data: { session: connection.session, revision: 2, contentOnly: true, reloadExtension: false } })
+    expect(reload).not.toHaveBeenCalled()
+    message({ type: 'custom', event: DEV_RELOAD_EVENT, data: { session: connection.session, revision: 2, contentOnly: true, reloadExtension: true } })
+    expect(reload).not.toHaveBeenCalled()
+    message({ type: 'custom', event: DEV_RELOAD_EVENT, data: { session: connection.session, revision: 3, contentScripts: null } })
+    message({ type: 'custom', event: DEV_RELOAD_EVENT, data: { session: connection.session, revision: 3, contentScripts: [] } })
     message({ type: 'custom', event: DEV_RELOAD_EVENT, data: { session: connection.session, revision: 3, reloadExtension: true } })
     expect(reload).toHaveBeenCalledOnce()
     message({ type: 'custom', event: DEV_RELOAD_EVENT, data: { session: 'another-session', revision: 4 } })
@@ -372,5 +450,70 @@ describe('CASE-06 runtime client', () => {
       session: connection.session, revision: 3, reloadExtension: false, lastExtensionReloadRevision: 2,
     } }) })
     expect(reload).toHaveBeenCalledTimes(2)
+    sockets[2].emit('message', { data: JSON.stringify({ type: 'custom', event: DEV_RELOAD_EVENT, data: {
+      session: connection.session, revision: 4, contentOnly: true, reloadExtension: false,
+    } }) })
+    expect(reload).toHaveBeenCalledTimes(2)
+  })
+
+  it('reconnects the runtime client after socket errors and closes without extension reload', () => {
+    const sockets: any[] = []
+    class Socket extends EventEmitter {
+      static OPEN = 1
+      readyState = 1
+      send = vi.fn()
+      close = vi.fn()
+      addEventListener(name: string, listener: (...args: any[]) => void) { this.on(name, listener) }
+      constructor(public url: string, public protocol: string) { super(); sockets.push(this) }
+    }
+    const timers: any[] = []
+    const reload = vi.fn()
+    vm.runInNewContext(reloadClientSource(connection, true), {
+      WebSocket: Socket, chrome: { runtime: { reload } },
+      setInterval: vi.fn(), clearInterval: vi.fn(), setTimeout: (callback: any) => { timers.push(callback); return timers.length }, clearTimeout: vi.fn(),
+    })
+    expect(sockets).toHaveLength(1)
+    sockets[0].emit('error', new Error('socket dropped'))
+    sockets[0].emit('close')
+    expect(sockets[0].close).toHaveBeenCalled()
+    expect(timers.length).toBeGreaterThan(0)
+    timers.at(-1)()
+    expect(sockets).toHaveLength(2)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('reloads a normal extension page on full revisions and ignores content-only revisions', () => {
+    const sockets: any[] = []
+    class Socket extends EventEmitter {
+      static OPEN = 1
+      readyState = 1
+      send = vi.fn()
+      close = vi.fn()
+      addEventListener(name: string, listener: (...args: any[]) => void) { this.on(name, listener) }
+      constructor(public url: string, public protocol: string) { super(); sockets.push(this) }
+    }
+    const pageReload = vi.fn()
+    vm.runInNewContext(reloadClientSource(connection, false), {
+      WebSocket: Socket, location: { reload: pageReload },
+      addEventListener: vi.fn(), setInterval: vi.fn(), clearInterval: vi.fn(), setTimeout: vi.fn(), clearTimeout: vi.fn(),
+    })
+    const message = (data: unknown) => sockets[0].emit('message', { data: JSON.stringify(data) })
+    message({ type: 'custom', event: DEV_RELOAD_EVENT, data: { session: connection.session, revision: 1, contentOnly: true } })
+    expect(pageReload).not.toHaveBeenCalled()
+    message({ type: 'custom', event: DEV_RELOAD_EVENT, data: { session: connection.session, revision: 2, reloadExtension: false } })
+    expect(pageReload).toHaveBeenCalledOnce()
+  })
+
+  it('accepts a reload snapshot without a public directory and remains stable for empty bundles', () => {
+    const manifest = { name: 'empty', version: '1.0.0' }
+    const first = extensionReloadSnapshot(manifest, {}, false)
+    expect(extensionReloadSnapshot(manifest, {}, false)).toBe(first)
+    expect(extensionReloadSnapshot({ ...manifest, description: 'changed' }, {}, false)).not.toBe(first)
+    const contentManifest = { content_scripts: [{ js: ['content.js'] }] }
+    const contentBundle = { 'content.js': { type: 'chunk', code: 'one', imports: [], dynamicImports: [], referencedFiles: [] } } as unknown as OutputBundle
+    const managed = extensionReloadSnapshot(contentManifest, contentBundle, false, new Set([0]))
+    const changedBundle = { ...contentBundle, 'content.js': { ...contentBundle['content.js'] as any, code: 'two' } } as unknown as OutputBundle
+    expect(extensionReloadSnapshot(contentManifest, changedBundle, false, new Set([0]))).toBe(managed)
+    expect(extensionReloadSnapshot(contentManifest, changedBundle, false, new Set())).not.toBe(managed)
   })
 })

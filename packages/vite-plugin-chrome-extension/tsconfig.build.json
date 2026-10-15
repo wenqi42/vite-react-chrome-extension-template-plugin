@@ -8,5 +8,5 @@
     "declarationMap": false,
     "sourceMap": true
   },
-  "include": ["index.ts", "build.ts"]
+  "include": ["index.ts", "build.ts", "doctor.ts", "client.ts", "content-hmr.ts"]
 }

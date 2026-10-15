@@ -1,0 +1,289 @@
+{
+  "status": "FAIL",
+  "startedAt": "2026-10-15T10:44:27.421Z",
+  "checks": [
+    {
+      "name": "initial both worlds, strict CSP, multiple and unmatched tabs",
+      "status": "PASS",
+      "snapshots": [
+        {
+          "roots": [
+            {
+              "world": "isolated",
+              "count": 1,
+              "revision": "0",
+              "dependency": "dep-zero",
+              "value": "isolated-saved-draft",
+              "color": "rgb(1, 2, 3)"
+            },
+            {
+              "world": "main",
+              "count": 1,
+              "revision": "0",
+              "dependency": "dep-zero",
+              "value": "main-saved-draft",
+              "color": "rgb(1, 2, 3)"
+            }
+          ],
+          "host": "host-owned-draft",
+          "hostNonce": "host-nonce-8b4132d6-11da-408d-b8f6-67d4e405a3bc",
+          "mainGlobal": {
+            "revision": 0,
+            "dependency": "dep-zero",
+            "shared": "shared-zero"
+          },
+          "timers": {
+            "isolated-0-dep-zero": 11,
+            "main-0-dep-zero": 11
+          },
+          "mounts": [
+            "1",
+            "1"
+          ]
+        },
+        {
+          "roots": [
+            {
+              "world": "isolated",
+              "count": 1,
+              "revision": "0",
+              "dependency": "dep-zero",
+              "value": "isolated-saved-draft",
+              "color": "rgb(1, 2, 3)"
+            },
+            {
+              "world": "main",
+              "count": 1,
+              "revision": "0",
+              "dependency": "dep-zero",
+              "value": "main-saved-draft",
+              "color": "rgb(1, 2, 3)"
+            }
+          ],
+          "host": "host-owned-draft",
+          "hostNonce": "host-nonce-d0aeae3b-6438-470e-90c2-1d0410f07190",
+          "mainGlobal": {
+            "revision": 0,
+            "dependency": "dep-zero",
+            "shared": "shared-zero"
+          },
+          "timers": {
+            "isolated-0-dep-zero": 8,
+            "main-0-dep-zero": 8
+          },
+          "mounts": [
+            "1",
+            "1"
+          ]
+        },
+        {
+          "roots": [
+            {
+              "world": "isolated",
+              "count": 1,
+              "revision": "0",
+              "dependency": "dep-zero",
+              "value": "isolated-saved-draft",
+              "color": "rgb(1, 2, 3)"
+            },
+            {
+              "world": "main",
+              "count": 1,
+              "revision": "0",
+              "dependency": "dep-zero",
+              "value": "main-saved-draft",
+              "color": "rgb(1, 2, 3)"
+            }
+          ],
+          "host": "host-owned-draft",
+          "hostNonce": "host-nonce-020c8128-714e-44e3-8e14-56e40dcead08",
+          "mainGlobal": {
+            "revision": 0,
+            "dependency": "dep-zero",
+            "shared": "shared-zero"
+          },
+          "timers": {
+            "isolated-0-dep-zero": 1,
+            "main-0-dep-zero": 1
+          },
+          "mounts": [
+            "1",
+            "1"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "three updates in each world preserve data and clean DOM, listeners, timers without navigation or worker/page restart",
+      "status": "PASS"
+    },
+    {
+      "name": "exclusive dependencies and CSS-only changes update both worlds under strict CSP",
+      "status": "PASS"
+    },
+    {
+      "name": "joint JS/CSS, newly opened matching tab, delayed duplicate observation",
+      "status": "PASS"
+    },
+    {
+      "name": "syntax errors preserve last successful artifact and mounts; recovery resumes in place",
+      "status": "PASS"
+    }
+  ],
+  "errors": [
+    {
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "page": "http://127.0.0.1:5173/matching/one"
+    }
+  ],
+  "contexts": [
+    {
+      "type": "service_worker",
+      "url": "chrome-extension://bioknkaccblbblnfbpkenbgfciefhclb/background.js",
+      "origin": "null"
+    }
+  ],
+  "fixture": "/var/folders/8p/n__w0c5s17l0qv88hly60m9r0000gn/T/content-hmr-verifier-yN1LMs/fixture",
+  "initialStatus": {
+    "session": "33cee862-62cc-45bd-b943-4e731d02aede",
+    "revision": 1,
+    "building": false,
+    "error": null,
+    "outDir": "/var/folders/8p/n__w0c5s17l0qv88hly60m9r0000gn/T/content-hmr-verifier-yN1LMs/fixture/dist",
+    "contentScripts": [
+      {
+        "id": "content-0",
+        "js": [
+          "chrome-extension-content-0-0.js"
+        ],
+        "css": "#verifier-isolated { color: rgb(1, 2, 3); }",
+        "hash": "c19fb21a9a8e9fd5611afdea06591ab82b0ec303eddd33b83b059d592c4ac2ad",
+        "matches": [
+          "http://127.0.0.1/*"
+        ],
+        "excludeMatches": [
+          "http://127.0.0.1/nonmatching/*"
+        ],
+        "includeGlobs": [],
+        "excludeGlobs": [],
+        "world": "ISOLATED",
+        "allFrames": false
+      },
+      {
+        "id": "content-1",
+        "js": [
+          "chrome-extension-content-1-0.js"
+        ],
+        "css": "#verifier-main { color: rgb(1, 2, 3); }",
+        "hash": "bc78de26e9421435790d6cd5073ac56e7c3c2e38a7d33b8eea1c84757455369e",
+        "matches": [
+          "http://127.0.0.1/*"
+        ],
+        "excludeMatches": [
+          "http://127.0.0.1/nonmatching/*"
+        ],
+        "includeGlobs": [],
+        "excludeGlobs": [],
+        "world": "MAIN",
+        "allFrames": false
+      }
+    ],
+    "runtimeSnapshot": "d3ae8f9d99bc4a2d92270c9b7927a8ab4bd0c7b3bb594ac0357a53339e5afa0a",
+    "reloadExtension": true,
+    "contentOnly": false,
+    "lastExtensionReloadRevision": 1,
+    "socketUrl": "ws://127.0.0.1:5173/?token=WbNZcs28EzUA"
+  },
+  "devManifest": {
+    "manifest_version": 3,
+    "name": "Content HMR independent verifier",
+    "version": "1.0.0",
+    "description": "A Chrome extension built with Vite and React.",
+    "action": {
+      "default_popup": "modules/popup/index.html"
+    },
+    "background": {
+      "service_worker": "background.js",
+      "type": "module"
+    },
+    "content_scripts": [
+      {
+        "matches": [
+          "http://127.0.0.1/*"
+        ],
+        "exclude_matches": [
+          "http://127.0.0.1/nonmatching/*"
+        ],
+        "js": [
+          "chrome-extension-content-0-0.js",
+          "chrome-extension-content-0-initial.js"
+        ],
+        "world": "ISOLATED"
+      },
+      {
+        "matches": [
+          "http://127.0.0.1/*"
+        ],
+        "exclude_matches": [
+          "http://127.0.0.1/nonmatching/*"
+        ],
+        "js": [
+          "chrome-extension-content-1-0.js",
+          "chrome-extension-content-1-initial.js"
+        ],
+        "world": "MAIN"
+      },
+      {
+        "matches": [
+          "http://127.0.0.1/*"
+        ],
+        "exclude_matches": [
+          "http://127.0.0.1/nonmatching/*"
+        ],
+        "js": [
+          "chrome-extension-content-0-bridge.js"
+        ],
+        "world": "ISOLATED"
+      },
+      {
+        "matches": [
+          "http://127.0.0.1/*"
+        ],
+        "exclude_matches": [
+          "http://127.0.0.1/nonmatching/*"
+        ],
+        "js": [
+          "chrome-extension-content-1-bridge.js"
+        ],
+        "world": "ISOLATED"
+      }
+    ],
+    "web_accessible_resources": [
+      {
+        "matches": [
+          "http://127.0.0.1/*"
+        ],
+        "resources": [
+          "assets/css/manifest-1-isolated-ts.css",
+          "assets/css/manifest-2-main-ts.css",
+          "content/isolated-ts.js",
+          "content/main-ts.js"
+        ]
+      }
+    ],
+    "permissions": [
+      "scripting"
+    ],
+    "host_permissions": [
+      "http://127.0.0.1/*",
+      "http://127.0.0.1:5173/*"
+    ],
+    "content_security_policy": {
+      "extension_pages": "script-src 'self'; object-src 'self'; connect-src * ws://127.0.0.1:5173 http://127.0.0.1:5173;"
+    }
+  },
+  "browserVersion": "151.0.7922.34",
+  "failure": "AssertionError [ERR_ASSERTION]: content updates cannot reload popup\n+ actual - expected\n\n+ 'a0c9809b-83f1-4e58-b0aa-e816b5b8459b'\n- '5b57ba0f-27bc-4c19-9a86-2758657dbef1'\n\n    at stableRuntime (file:///Users/wenqi/Desktop/extension-template-plugin/scripts/content-hmr-smoke.mjs:244:14)\n    at async file:///Users/wenqi/Desktop/extension-template-plugin/scripts/content-hmr-smoke.mjs:340:5",
+  "finishedAt": "2026-10-15T10:44:36.502Z"
+}

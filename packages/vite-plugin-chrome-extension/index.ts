@@ -19,6 +19,8 @@ export interface ContentScriptsBuildOptions {
    * for source files referenced by `manifest.content_scripts[].js`.
    */
   standalone?: boolean;
+  /** Replace opt-in content scripts in place during development. */
+  hmr?: boolean;
 }
 
 export interface BackgroundBuildOptions {
@@ -585,15 +587,6 @@ function resolveBundleImport(
   );
 }
 
-function stripModuleSyntax(code: string) {
-  return code
-    .replace(/import\s+[^;]+from\s+["'][^"']+["'];?/g, "")
-    .replace(/import\s*["'][^"']+["'];?/g, "")
-    .replace(/export\s*\{[^}]*\};?/g, "")
-    .replace(/\bexport\s+default\s+/g, "")
-    .replace(/\bexport\s+(?=(?:const|let|var|function|class)\b)/g, "");
-}
-
 /**
  * Rollup uses one output format for all inputs. Content scripts need a
  * self-contained function when they are loaded by Chrome, so we inline their
@@ -610,43 +603,65 @@ function makeStandaloneContentChunk(
     return undefined;
   }
   if (seen.has(fileName)) return "";
-  seen.add(fileName);
-  const dependencies = [
-    ...(item.imports || []),
-    // Dynamic imports cannot be inlined safely; they stay as output files and
-    // are included in WAR below.
-  ];
-  const dependencyCode = dependencies
-    .map((dependency) => {
-      const resolved = resolveBundleImport(dependency, fileName, bundle);
-      return resolved
-        ? inlineContentChunk(resolved, bundle, seen)
-        : undefined;
-    })
-    .filter((code): code is string => Boolean(code))
-    .join("\n");
-  const ownCode = stripModuleSyntax(item.code);
-  return `(function () {\n${dependencyCode}\n${ownCode}\n})();\n`;
-}
-
-function inlineContentChunk(
-  fileName: string,
-  bundle: BundleLike,
-  seen: Set<string>,
-): string | undefined {
-  const item = bundleItemByFileName(bundle, fileName);
-  if (!item || item.type !== "chunk" || typeof item.code !== "string") {
-    return undefined;
-  }
-  if (seen.has(fileName)) return "";
-  seen.add(fileName);
-  const dependencies = (item.imports || [])
-    .map((dependency) => resolveBundleImport(dependency, fileName, bundle))
-    .filter((dependency): dependency is string => Boolean(dependency))
-    .map((dependency) => inlineContentChunk(dependency, bundle, seen))
-    .filter((code): code is string => Boolean(code))
-    .join("\n");
-  return `${dependencies}\n${stripModuleSyntax(item.code)}`;
+  const factories: string[] = [];
+  const visit = (file: string) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const chunk = bundleItemByFileName(bundle, file);
+    if (!chunk || chunk.type !== "chunk" || typeof chunk.code !== "string") return;
+    const source = chunk.code;
+    const edits: Array<{ start: number; end: number; text: string }> = [];
+    const exportBindings: string[] = [];
+    const imported = (specifier: string) => {
+      const dependency = resolveBundleImport(specifier, file, bundle);
+      if (!dependency) throw new Error(`[chrome-extension] Cannot inline content-script import ${specifier} from ${file}.`);
+      visit(dependency);
+      return `__load(${JSON.stringify(dependency)})`;
+    };
+    for (const node of parse(source, { sourceType: "module" }).program.body) {
+      if (node.type === "ImportDeclaration") {
+        const load = imported(node.source.value);
+        const bindings = node.specifiers.map((specifier) => {
+          if (specifier.type === "ImportNamespaceSpecifier") return `const ${specifier.local.name} = ${load};`;
+          const name = specifier.type === "ImportDefaultSpecifier"
+            ? "default"
+            : specifier.imported.type === "Identifier" ? specifier.imported.name : specifier.imported.value;
+          return `const ${specifier.local.name} = ${load}[${JSON.stringify(name)}];`;
+        });
+        edits.push({ start: node.start!, end: node.end!, text: bindings.length ? bindings.join("\n") : `${load};` });
+      } else if (node.type === "ExportNamedDeclaration") {
+        if (node.declaration) {
+          edits.push({ start: node.start!, end: node.declaration.start!, text: "" });
+          const declaration = node.declaration;
+          const names = declaration.type === "VariableDeclaration"
+            ? declaration.declarations.flatMap((value) => value.id.type === "Identifier" ? [value.id.name] : [])
+            : "id" in declaration && declaration.id && declaration.id.type === "Identifier" ? [declaration.id.name] : [];
+          for (const name of names) exportBindings.push(`${JSON.stringify(name)}: { enumerable: true, get: () => ${name} }`);
+        } else {
+          const load = node.source ? imported(node.source.value) : undefined;
+          for (const specifier of node.specifiers) {
+            if (specifier.type !== "ExportSpecifier") continue;
+            const name = specifier.exported.type === "Identifier" ? specifier.exported.name : specifier.exported.value;
+            const local = specifier.local.name;
+            exportBindings.push(`${JSON.stringify(name)}: { enumerable: true, get: () => ${load ? `${load}[${JSON.stringify(local)}]` : local} }`);
+          }
+          edits.push({ start: node.start!, end: node.end!, text: "" });
+        }
+      } else if (node.type === "ExportAllDeclaration") {
+        edits.push({ start: node.start!, end: node.end!, text: `Object.assign(__exports, ${imported(node.source.value)});` });
+      } else if (node.type === "ExportDefaultDeclaration") {
+        edits.push({ start: node.start!, end: node.declaration.start!, text: "const __default = " });
+        exportBindings.push(`"default": { enumerable: true, get: () => __default }`);
+      }
+    }
+    let transformed = source;
+    for (const edit of edits.sort((left, right) => right.start - left.start)) {
+      transformed = transformed.slice(0, edit.start) + edit.text + transformed.slice(edit.end);
+    }
+    factories.push(`${JSON.stringify(file)}: (__exports) => {\n${transformed}\nObject.defineProperties(__exports, {${exportBindings.join(",")}});\n}`);
+  };
+  visit(fileName);
+  return `(function () {\nconst __factories = {${factories.join(",\n")}};\nconst __cache = Object.create(null);\nconst __load = (id) => { if (__cache[id]) return __cache[id]; const value = __cache[id] = {}; __factories[id](value); return value; };\n__load(${JSON.stringify(fileName)});\n})();\n`;
 }
 
 function contentScriptOutput(
@@ -931,10 +946,32 @@ function collectPermissions(code: string, id: string) {
   if (/\.(?:jsx|tsx)$/.test(id)) plugins.push("jsx");
   const ast = parse(code, { sourceType: "unambiguous", plugins });
   const permissions = new Set<string>();
+  const permissionApis = new Map<string, Set<string>>();
   const namespaces = new Set<string>();
+  const lifecycleBindings = new Set<string>();
+  const lifecycleNamespaces = new Set<string>();
+  let contentLifecycle = false;
+  for (const statement of ast.program.body) {
+    if (statement.type !== "ImportDeclaration" ||
+        statement.source.value !== "@vite-react-chrome-extension/plugin/client") continue;
+    for (const specifier of statement.specifiers) {
+      if (specifier.type === "ImportNamespaceSpecifier") lifecycleNamespaces.add(specifier.local.name);
+      else if (specifier.type === "ImportSpecifier" &&
+               (specifier.imported.type === "Identifier" ? specifier.imported.name : specifier.imported.value) === "defineContentScript") {
+        lifecycleBindings.add(specifier.local.name);
+      }
+    }
+  }
   const visit = (node: unknown): void => {
     if (!node || typeof node !== "object") return;
     const candidate = node as Node;
+    if (candidate.type === "CallExpression") {
+      const callee = candidate.callee;
+      if (callee.type === "Identifier" && lifecycleBindings.has(callee.name)) contentLifecycle = true;
+      if (callee.type === "MemberExpression" && callee.object.type === "Identifier" &&
+          lifecycleNamespaces.has(callee.object.name) && !callee.computed &&
+          callee.property.type === "Identifier" && callee.property.name === "defineContentScript") contentLifecycle = true;
+    }
     if (
       candidate.type === "MemberExpression" ||
       candidate.type === "OptionalMemberExpression"
@@ -946,6 +983,9 @@ function collectPermissions(code: string, id: string) {
           namespaces.add(namespace);
           for (const permission of PERMISSION_MAP[namespace] || []) {
             permissions.add(permission);
+            const apis = permissionApis.get(permission) || new Set<string>();
+            apis.add(chain.slice(0, Math.min(chain.length, 3)).join("."));
+            permissionApis.set(permission, apis);
           }
         }
       }
@@ -957,12 +997,18 @@ function collectPermissions(code: string, id: string) {
     }
   };
   visit(ast);
-  return {
+  const result = {
     permissions,
     unknownNamespaces: [...namespaces].filter(
       (name) => !(name in PERMISSION_MAP),
     ),
   };
+  // Preserve the original enumerable helper shape while exposing provenance
+  // to manifest generation and the diagnostic report.
+  return Object.defineProperties(result, {
+    permissionApis: { value: permissionApis },
+    contentLifecycle: { value: contentLifecycle },
+  }) as typeof result & { permissionApis: typeof permissionApis; contentLifecycle: boolean };
 }
 
 function pagesToManifest(pages: Record<string, string>): Manifest {
@@ -1355,12 +1401,24 @@ export default function chromeExtension(options: ChromeExtensionOptions = {}): P
             bundle,
           );
           if (!output) continue;
+          const visited = new Set<string>();
+          const usesLifecycle = (file: string): boolean => {
+            if (visited.has(file)) return false;
+            visited.add(file);
+            const chunk = bundle[file];
+            if (chunk?.type !== "chunk") return false;
+            return Object.entries(chunk.modules || {}).some(([id, module]) =>
+              module.renderedLength > 0 && modulePermissions.get(id)?.contentLifecycle,
+            ) || (chunk.imports || []).some(usesLifecycle);
+          };
+          const lifecycle = usesLifecycle(output);
           const standalone = makeStandaloneContentChunk(output, bundle);
           const chunk = bundleItemByFileName(bundle, output);
           if (standalone && chunk && chunk.type === "chunk") {
             chunk.code = standalone;
             chunk.imports = [];
             chunk.dynamicImports = chunk.dynamicImports || [];
+            (chunk as typeof chunk & { contentHmrLifecycle?: boolean }).contentHmrLifecycle = lifecycle;
           }
         }
       }
@@ -1431,11 +1489,35 @@ export default function chromeExtension(options: ChromeExtensionOptions = {}): P
 
       this.emitFile({
         type: "asset",
+        fileName: "chrome-extension-diagnostics.json",
+        source: `${JSON.stringify({
+          version: 1,
+          permissions: {
+            explicit: [...new Set(generatedManifest.permissions || [])].sort(),
+            autoPermissions: options.autoPermissions !== false,
+            inferred: [...usedPermissions].sort().map((permission) => ({
+              permission,
+              sources: [...modulePermissions]
+                .filter(([id, result]) => activeModules.has(id) && result.permissionApis.has(permission))
+                .flatMap(([id, result]) =>
+                  [...result.permissionApis.get(permission)!]
+                    .filter((api) => api.split(".").length >= 3)
+                    .map((api) => ({
+                      file: path.relative(resolvedConfig.root, id.split("?")[0]).split(path.sep).join("/"),
+                      api,
+                    })),
+                ),
+            })),
+          },
+        }, null, 2)}\n`,
+      });
+      this.emitFile({
+        type: "asset",
         fileName: "manifest.json",
         source: `${JSON.stringify(rewrittenManifest, null, 2)}\n`,
       });
       this.warn(
-        `[chrome-extension] Manifest generated for ${path.resolve(options.outDir || resolvedConfig.build.outDir)}`,
+        `[chrome-extension] Manifest generated for ${path.resolve(resolvedConfig.root, options.outDir || resolvedConfig.build.outDir)}`,
       );
     },
   };

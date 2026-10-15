@@ -1,0 +1,112 @@
+name: Extension acceptance
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -eo pipefail {0}
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:coverage
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: quality-diagnostics
+          path: |
+            coverage
+            .cache
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      cases: ${{ steps.cases.outputs.cases }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - id: cases
+        run: node scripts/acceptance.mjs --list --json | node --input-type=module -e 'let text=""; for await (const chunk of process.stdin) text+=chunk; const fs=await import("node:fs"); fs.appendFileSync(process.env.GITHUB_OUTPUT, `cases=${JSON.stringify(JSON.parse(text).cases)}\n`)'
+  generated-project:
+    needs: [quality, matrix]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        case: ${{ fromJSON(needs.matrix.outputs.cases) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        with:
+          chrome-version: stable
+      - run: npm run test:acceptance -- --case "${{ matrix.case.id }}" --chrome "${{ steps.chrome.outputs.chrome-path }}" --report ".cache/acceptance/${{ matrix.case.id }}.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-${{ matrix.case.id }}
+          path: .cache/acceptance
+  browser-regressions:
+    needs: quality
+    runs-on: ubuntu-latest
+    env:
+      TMPDIR: ${{ runner.temp }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        with:
+          chrome-version: stable
+      - run: npm run build
+      - run: mkdir -p .cache/browser-regressions
+      - id: client-package
+        env:
+          PACK_DIRECTORY: ${{ github.workspace }}/.cache/browser-regressions/packages
+        run: |
+          mkdir -p "$PACK_DIRECTORY"
+          npm pack --workspace @vite-react-chrome-extension/plugin --json --pack-destination "$PACK_DIRECTORY" > "$PACK_DIRECTORY/pack.json"
+          node --input-type=module -e 'import fs from "node:fs"; import path from "node:path"; const output=fs.readFileSync(path.join(process.env.PACK_DIRECTORY, "pack.json"), "utf8"); const match=output.match(/\[\s*\{[\s\S]*\}\s*\]\s*$/); if (!match) throw new Error("Missing npm pack JSON"); const [packed]=JSON.parse(match[0]); fs.appendFileSync(process.env.GITHUB_OUTPUT, `tarball=${path.join(process.env.PACK_DIRECTORY, packed.filename)}\n`)'
+      - run: xvfb-run -a npm run test:doctor -- --chrome "${{ steps.chrome.outputs.chrome-path }}" --pack --keep 2>&1 | tee .cache/browser-regressions/doctor.log
+        if: ${{ !cancelled() }}
+      - run: xvfb-run -a npm run test:content-client-package -- --tarball "${{ steps.client-package.outputs.tarball }}" --chrome "${{ steps.chrome.outputs.chrome-path }}" --evidence .cache/content-client-package 2>&1 | tee .cache/browser-regressions/content-client-package.log
+        if: ${{ !cancelled() }}
+      - run: xvfb-run -a npm run test:content-hmr -- --chrome "${{ steps.chrome.outputs.chrome-path }}" --evidence .cache/content-hmr 2>&1 | tee .cache/browser-regressions/content-hmr.log
+        if: ${{ !cancelled() }}
+      - run: xvfb-run -a npm run test:dev-reload -- --chrome "${{ steps.chrome.outputs.chrome-path }}" --keep 2>&1 | tee .cache/browser-regressions/dev-reload.log
+        if: ${{ !cancelled() }}
+      - run: xvfb-run -a npm run test:network-rewrite -- --chrome "${{ steps.chrome.outputs.chrome-path }}" --keep 2>&1 | tee .cache/browser-regressions/network-rewrite.log
+        if: ${{ !cancelled() }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-regression-evidence
+          path: |
+            .cache
+            ${{ runner.temp }}/extension-dev-reload-*/dev-reload-cdp-evidence.json

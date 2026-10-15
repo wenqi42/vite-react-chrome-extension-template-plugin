@@ -1,6 +1,6 @@
 # CASE-06：扩展开发构建与自动 reload
 
-状态：现有。该能力提供 build-backed full reload，不保留 React/Vue 组件状态，也不提供 content script 原地 HMR。
+状态：现有。该能力提供默认的 build-backed full reload，不保留 React/Vue 组件状态。显式启用的 content script 原地更新见 [CASE-07](case-07-content-reload-boundaries.md)。
 
 ## 使用方式
 
@@ -29,8 +29,8 @@ chromeExtension({
 ## 运行时边界
 
 - 这是完整 reload，不是状态保留 HMR。
-- 已注入的 content script 不会自动重新执行；修改后刷新匹配的宿主网页。
-- `world: 'MAIN'` 继续使用生产构建 fallback，不代表 MAIN world HMR 已支持。
+- 默认路径不会重新执行已注入的 content script；修改后刷新匹配的宿主网页。
+- `world: 'MAIN'` 在默认路径中遵循同一边界；原地 HMR 需要单独启用与生命周期注册。
 - 工具栏 popup 属于短生命周期页面，整扩展 reload 后需要重新打开。
 - Chrome 开发者模式必须开启；命令行首次加载不等于 `runtime.reload()` 权限已验证。
 

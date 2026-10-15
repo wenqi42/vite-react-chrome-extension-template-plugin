@@ -72,6 +72,7 @@
 1. 功能开发和行为修复执行完整流程；纯讨论、只读审查、拼写和格式调整使用简化流程。无法使用独立子代理时，应明确披露验证限制
 2. 参与实现的代理不能担任该模块的独立 Verifier
 3. 认为用例有误时，提交理由，由 Verifier 复核；涉及标准变化时由 Orchestrator 确认
+4. Orchestrator 对过时或者陈旧的 acceptance 及时删除，减少验证内容膨胀
 
 
 ## 测试基准硬约束
@@ -90,9 +91,9 @@ pnpm run typecheck
 
 覆盖率为硬门禁，但 Review 阶段需抽查测试质量：是否存在只断言“函数被调用”而不检查返回值的测试用例，或者虚假的、 obviously wrong 的测试实现
 
-### E2E功能测试 触发规则
+### E2E功能测试
 
-Orchestrator 给出本轮验收标准后，Verifier 用 Playwright 在 `apps/wise-demo` 上按标准操作。输出应包含通过或失败、操作路径和证据。探索式验证连续稳定后，再把成功路径收成可重复的 Playwright 用例
+Orchestrator 给出本轮验收标准后，Verifier 用 Playwright 在上按标准操作。输出应包含通过或失败、操作路径和证据。探索式验证连续稳定后，再把成功路径收成可重复的 Playwright 用例
 
 - 模块完成/变更时必跑
 - 采用 **探索式执行**：Verifier 按验收标准中的流程图操作，不依赖固定脚本

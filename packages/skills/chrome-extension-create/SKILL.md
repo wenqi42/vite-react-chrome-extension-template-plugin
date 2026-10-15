@@ -66,6 +66,8 @@ npm run verify:extension -- --dist dist
 
 Run `npm run dev`, wait for the first successful extension build, enable Developer mode in `chrome://extensions` and load `dist`. Page-only edits refresh extension pages. Worker, content-script or Manifest edits reload the extension and close existing extension pages; reopen them to inspect the new output. Refresh matching host pages after content-script edits. `liveReload: false` keeps ordinary Vite preview only.
 
+That is the template's default behavior. If the user needs in-place content updates, enable `contentScripts: { hmr: true }` and use the plugin client lifecycle to dispose old side effects and explicitly preserve data. Consult the plugin skill's content HMR guidance; do not promise automatic state preservation for an arbitrary existing script or framework.
+
 For browser evidence use Chrome for Testing and the repository smoke script:
 
 ```bash
@@ -73,3 +75,11 @@ npm run test:dev-reload -- --chrome /path/to/chrome-for-testing
 ```
 
 Do not describe HTTP rendering as Chrome runtime validation. Report the generated project path, selected tools, exact checks, browser version and any content-script or MAIN-world limitation.
+
+## Packaged template matrix
+
+For repository template changes, use `npm run test:acceptance -- --list --json` to inspect the CSS/Less/Sass × ESLint × Prettier × Vite 5/6/7 matrix. Run without `--case` for all 36 combinations; `--case <id>` gives focused evidence only.
+
+The runner packs CLI/plugin artifacts, installs generated projects outside the repository, runs only selected tools, verifies local references, and loads extensions in Chrome. Pass `--chrome /path/to/chrome-for-testing`, optionally `--report <path>` and `--keep`. Inspect final case count, stage exit codes, artifact hashes and browser evidence before claiming full acceptance.
+
+For a generated project's build problems, `npx chrome-extension-doctor --dist dist --json` reports common Manifest/resource/CSP issues and permission provenance. Add `--dev-url` for dev diagnostics; Chrome checks are explicitly requested with `--cdp` and `--extension-id`, requiring Node.js 22+.

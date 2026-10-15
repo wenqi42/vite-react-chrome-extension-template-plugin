@@ -1,14 +1,15 @@
-# CASE-07：Content script 开发更新边界
+# CASE-07：Content script 原地更新与生命周期
 
-状态：content script 原地 HMR 尚未支持。当前路径是 watch build → 扩展 reload → 刷新宿主网页。
+默认开发行为仍为扩展完整 reload，已注入的 content script 需要刷新宿主网页后执行新版本。需要原地更新时，显式开启 HMR，并使用生命周期 API 管理脚本副作用。独立验收状态见 [能力矩阵](../acceptance-matrix.md)。
 
-## 当前用法
+## 启用
 
 ```ts
 chromeExtension({
+  contentScripts: { hmr: true },
   manifest: {
     content_scripts: [{
-      matches: ['http://127.0.0.1/*'],
+      matches: ['https://example.com/*'],
       js: ['src/content.ts'],
       world: 'ISOLATED',
     }],
@@ -16,24 +17,60 @@ chromeExtension({
 })
 ```
 
-1. 启动 `vite dev`，在 Chrome 开发者模式加载 `dist`。
-2. 打开匹配的宿主网页。
-3. 修改 content script，等待开发构建成功。
-4. 刷新宿主网页，新版本脚本会随导航执行。
+`src/content.ts`：
 
-扩展 reload 不会清理旧脚本已经对 DOM、事件监听器、计时器或全局对象产生的副作用。插件不会自动刷新所有用户网页，也不会向已打开文档重复注入脚本。
+```ts
+import { defineContentScript } from '@vite-react-chrome-extension/plugin/client'
+import './content.css'
 
-## World 边界
+void defineContentScript('example-editor', ({ data, signal, onDispose }) => {
+  const root = document.createElement('section')
+  const input = document.createElement('input')
+  input.value = typeof data.draft === 'string' ? data.draft : ''
+  root.append(input)
+  document.body.append(root)
 
-| World | 当前支持 | 未支持 |
-| --- | --- | --- |
-| `ISOLATED` | standalone IIFE、watch build、扩展 reload、宿主网页刷新后执行新版本 | 无宿主刷新模块替换、自动 dispose、状态恢复 |
-| `MAIN` | 保留 Manifest `world` 字段和生产构建 fallback | 扩展 bridge、host CSP 下的 HMR、自动清理 |
+  input.addEventListener('change', () => {
+    console.log(input.value)
+  }, { signal })
 
-MAIN world 与宿主页面共享 JavaScript 环境，host CSP 和页面脚本可能影响执行。不要把 build 成功描述为 MAIN world HMR 通过。
+  onDispose(previous => {
+    previous.draft = input.value
+    root.remove()
+  })
+})
+```
 
-## 验证标准
+为每个逻辑脚本使用稳定且独立的 ID。同一个执行 world 中，同 ID 的下一次挂载会先等待旧实例完成清理，再获得相同 `data` 对象。`signal` 在清理时 abort；也可以返回同步或异步清理函数，显式清理 DOM、定时器和订阅。
 
-当前 CDP smoke 会确认：扩展 reload 后旧宿主文档仍保持旧 marker；主动刷新宿主网页后得到新 marker，且没有 Runtime exception 或 `console.error`。这证明了可靠的 manual-host-refresh 路径，不代表 CRXJS 风格 content HMR。
+`defineContentScript` 返回清理函数的 Promise。停止操作幂等，旧实例的停止函数不会清理新实例。setup 或 cleanup 失败时尽力完成剩余清理并 reject，调用者可捕获错误；之后允许重新挂载。生命周期 API 在生产中仍可使用，不依赖 Chrome API 或开发服务。
 
-后续 content HMR 需要独立实现和验证：可释放的更新机制、断线重连、重复注入保护、严格 host CSP、ISOLATED/MAIN 两种 world，以及无需手工宿主刷新即可观察新版本。
+## 更新行为
+
+- ISOLATED 和 MAIN 分别拥有自己的生命周期数据，不跨 world 共享。
+- 受支持 content script 或其独占依赖更新时，worker 向匹配文档注入打包在扩展内的本地脚本，宿主无需导航。
+- CSS 更新通过 Chrome 的样式注入接口移除旧文本并加入新文本；开发初始样式由异步 bridge 注入，不能依赖它在网页首帧之前出现。
+- 多个匹配标签页同步更新；新开匹配网页执行当前产物；不匹配文档不会挂载。
+- 构建失败保留最后成功版本；修复后继续更新。
+- 同地址开发服务重启后重连；扩展页面可能因开发 session 切换刷新。随后纯 content 更新仍保持宿主、worker 和无关扩展页面运行。
+- background、Manifest 注册字段或与其他运行入口共享的依赖改变时，使用完整扩展 reload。
+
+开发代码不从 Vite 加载远程 JavaScript，也不依赖 eval；WebSocket 传递更新信息。CSS 注入不依赖宿主允许内联 style。MAIN 与宿主共享 JavaScript 环境，使用者仍需避免全局命名与页面逻辑冲突。
+
+## 限制与回退
+
+HMR 需要源码实际调用生命周期注册。插件不能自动推断任意脚本的 DOM、监听器和定时器清理，也不会自动序列化框架状态；React/Vue Fast Refresh 不在此接口的保证范围内。
+
+不兼容条目会发出诊断并保留完整 reload 路径，例如未注册生命周期的 JavaScript、非 standalone 的模块输出，以及 `match_about_blank` / `match_origin_as_fallback` 等不能安全复现的匹配方式。完整 reload 不会清理已注入脚本对旧宿主文档的影响；此时刷新匹配宿主网页。不要用宿主刷新作为原地 HMR 的成功证据。
+
+`liveReload: false` 关闭整个开发更新层。开发 Manifest 为原地注入增加 `scripting` 和匹配 host 权限，以及开发连接需要的 host permission/CSP。生产构建不包含传输客户端、开发地址或这些开发新增权限；用户显式声明的权限继续保留。
+
+## 验证
+
+```bash
+npx vitest run packages/vite-plugin-chrome-extension/test/content-hmr.vitest.ts
+npm run test:content-hmr -- --chrome /path/to/chrome-for-testing
+npm run test:coverage
+```
+
+真实浏览器检查两个 world、三次更新、输入恢复、DOM/监听器/定时器清理、CSS、多标签页、严格 CSP、错误恢复、重连和完整 reload 回退。打包后还需外部项目类型检查、生产构建和基本挂载/清理验证。完整条件见 [HMR 验收标准](../spec/acceptance/content-hmr.md)。

@@ -6,10 +6,21 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "chrome-extension-doctor": "./dist/doctor.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./doctor": {
+      "types": "./dist/doctor.d.ts",
+      "import": "./dist/doctor.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
     }
   },
   "peerDependencies": {
@@ -27,6 +38,15 @@
     "dist/dev.js",
     "dist/dev.js.map",
     "dist/dev.d.ts",
+    "dist/content-hmr.js",
+    "dist/content-hmr.js.map",
+    "dist/content-hmr.d.ts",
+    "dist/client.js",
+    "dist/client.js.map",
+    "dist/client.d.ts",
+    "dist/doctor.js",
+    "dist/doctor.js.map",
+    "dist/doctor.d.ts",
     "dist/chrome-permission-map.json"
   ],
   "scripts": {

@@ -167,7 +167,7 @@ test("autoPermissions can be disabled", () => {
   assert.equal("permissions" in output, false);
 });
 
-test("manifest helpers support CRXJS-style factories and dynamic resources", async () => {
+test("manifest helpers support factories and dynamic resources", async () => {
   const manifest = defineManifest(({ mode }) => ({
     name: `Factory ${mode}`,
     version: "1.0.0",

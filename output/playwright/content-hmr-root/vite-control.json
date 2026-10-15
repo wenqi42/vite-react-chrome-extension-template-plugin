@@ -1,0 +1,15 @@
+{
+  "project": "/var/folders/8p/n__w0c5s17l0qv88hly60m9r0000gn/T/vite-stock-root-control-xN6krZ",
+  "canonical": "/private/var/folders/8p/n__w0c5s17l0qv88hly60m9r0000gn/T/vite-stock-root-control-xN6krZ",
+  "checks": [
+    {
+      "label": "alias",
+      "status": "FAIL",
+      "message": "[vite:build-html] The \"fileName\" or \"name\" properties of emitted chunks and assets must be strings that are neither absolute nor relative paths, received \"../../../../../../private/var/folders/8p/n__w0c5s17l0qv88hly60m9r0000gn/T/vite-stock-root-control-xN6krZ/modules/popup/index.html\"."
+    },
+    {
+      "label": "canonical",
+      "status": "PASS"
+    }
+  ]
+}

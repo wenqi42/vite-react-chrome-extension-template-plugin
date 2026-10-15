@@ -58,7 +58,25 @@
       "id": 10,
       "skill": "chrome-extension-create",
       "prompt": "模板 npm run dev 后，为什么 content script 没有原地更新？",
-      "expected": "Explain full extension reload versus an already-injected host document, instruct the user to refresh the matching host page, and do not claim state-preserving or content-script HMR."
+      "expected": "Explain the default full-reload boundary and host refresh. When in-place updates are wanted, opt into contentScripts.hmr with defineContentScript, explicit data preservation and cleanup. State unsupported matching/output fallback and avoid promising automatic framework state or Fast Refresh."
+    },
+    {
+      "id": 11,
+      "skill": "chrome-extension-plugin",
+      "prompt": "给 ISOLATED 和 MAIN content script 开启原地更新，保留输入，并避免重复监听器",
+      "expected": "Enable contentScripts.hmr, import the browser client, use distinct stable lifecycle IDs in each world, save input through data/onDispose, clean DOM/timers and use signal for listeners. Validate both worlds in real Chrome without host navigation or worker restart; check production has no development transport or inferred scripting/host permissions."
+    },
+    {
+      "id": 12,
+      "skill": "chrome-extension-plugin",
+      "prompt": "dist 扩展加载失败，还想知道 storage 权限是哪里补上的",
+      "expected": "Run chrome-extension-doctor with the actual root/dist and JSON, inspect issue code/hint and active-build permission provenance. Missing provenance stays unknown. Request CDP diagnostics only against the specified running Chrome extension, use Node22+ for CDP and do not treat skipped runtime checks as passed."
+    },
+    {
+      "id": 13,
+      "skill": "chrome-extension-create",
+      "prompt": "模板改完了，验证所有样式工具组合以及 Vite 5/6/7 都能用",
+      "expected": "Run the unfiltered 36-case acceptance matrix from packed artifacts in external projects, verify actual selected tools and Chrome extension runtime, and inspect completed report scope, expected count, exits and hashes. Do not substitute a selected case, npm link or HTTP preview for full acceptance."
     }
   ]
 }

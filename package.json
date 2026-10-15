@@ -26,7 +26,12 @@
     "test:coverage": "vitest run --coverage",
     "test:vitest": "npm run test:coverage",
     "build:network-example": "npm run build --workspace @example/network-rewrite-extension",
-    "test:network-rewrite": "node scripts/network-rewrite-smoke.mjs"
+    "test:network-rewrite": "node scripts/network-rewrite-smoke.mjs",
+    "test:acceptance": "node scripts/acceptance.mjs",
+    "test:doctor": "node scripts/doctor-smoke.mjs",
+    "test:content-hmr": "node scripts/content-hmr-smoke.mjs",
+    "test:content-client-package": "node scripts/content-client-package-smoke.mjs",
+    "doctor": "npm run build --workspace @vite-react-chrome-extension/plugin && node packages/vite-plugin-chrome-extension/dist/doctor.js"
   },
   "engines": {
     "node": ">=18"
@@ -39,6 +44,7 @@
     "cheerio": "^1.2.0",
     "eslint": "^9.39.5",
     "globals": "^17.13.0",
+    "playwright-core": "1.56.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.2",
     "vitest": "^2.1.9"

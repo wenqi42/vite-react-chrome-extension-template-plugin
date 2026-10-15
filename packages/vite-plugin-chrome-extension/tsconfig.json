@@ -8,5 +8,5 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["index.ts", "test/**/*.ts", "build.ts"]
+  "include": ["index.ts", "doctor.ts", "client.ts", "content-hmr.ts", "test/**/*.ts", "build.ts"]
 }

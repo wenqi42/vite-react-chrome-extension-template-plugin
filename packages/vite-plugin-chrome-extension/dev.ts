@@ -14,6 +14,7 @@ import {
 } from "vite";
 import type { InputOption, OutputBundle, OutputOptions, RollupWatcher } from "rollup";
 import type { ChromeExtensionOptions, Manifest } from "./index.js";
+import { contentHmrRuntimeSource, prepareContentHmr, type ContentHmrEntry } from "./content-hmr.js";
 
 export const DEV_CLIENT_FILE = "chrome-extension-dev-client.js";
 export const DEV_WORKER_FILE = "chrome-extension-dev-worker.js";
@@ -30,6 +31,9 @@ interface ReloadState {
   outDir: string;
   reloadExtension?: boolean;
   lastExtensionReloadRevision?: number;
+  contentScripts?: ContentHmrEntry[];
+  runtimeSnapshot?: string;
+  contentOnly?: boolean;
 }
 
 interface ReloadConnection {
@@ -37,6 +41,8 @@ interface ReloadConnection {
   httpOrigin: string;
   session: string;
   revision: number;
+  contentScripts?: ContentHmrEntry[];
+  runtimeSnapshot?: string;
 }
 
 /** Copy configuration containers without cloning plugin closures or functions. */
@@ -82,6 +88,7 @@ export function reloadClientSource(connection: ReloadConnection, worker: boolean
   let socket;
   let retry;
   let stopped = false;
+  ${worker && connection.contentScripts ? `const updateContent = ${contentHmrRuntimeSource(connection.contentScripts)};` : ""}
   const reload = () => ${worker ? "chrome.runtime.reload()" : "location.reload()"};
   const hello = () => {
     if (socket && socket.readyState === WebSocket.OPEN) {
@@ -101,10 +108,16 @@ export function reloadClientSource(connection: ReloadConnection, worker: boolean
       if (!next || typeof next.revision !== "number" || !next.session) return;
       if (next.session !== session || next.revision > revision) {
         const sessionChanged = next.session !== session;
-        const needsExtensionReload = sessionChanged || next.reloadExtension !== false || next.lastExtensionReloadRevision > revision;
+        const sameRuntimeAfterRestart = sessionChanged && initial.contentScripts &&
+          initial.runtimeSnapshot && next.runtimeSnapshot === initial.runtimeSnapshot;
+        const needsExtensionReload = sessionChanged ? !sameRuntimeAfterRestart :
+          next.reloadExtension !== false || next.lastExtensionReloadRevision > revision;
         revision = next.revision;
         session = next.session;
-        ${worker ? `if (!needsExtensionReload) return;` : ""}
+        if (!needsExtensionReload) {
+          ${worker && connection.contentScripts ? `if (Array.isArray(next.contentScripts)) void updateContent(next.contentScripts);` : ""}
+          ${worker ? "return;" : "if (next.contentOnly) return;"}
+        }
         stopped = true;
         clearTimeout(retry);
         clearInterval(heartbeat);
@@ -153,7 +166,31 @@ function appendConnectSource(value: unknown, source: string): string {
 }
 
 /** Fingerprint only extension registration/runtime inputs, excluding page bundles. */
-export function extensionReloadSnapshot(manifest: Manifest, bundle: OutputBundle, publicDir: string | false): string {
+export function extensionReloadSnapshot(manifest: Manifest, bundle: OutputBundle, publicDir: string | false, managedContent = new Set<number>()): string {
+  const snapshotManifest = structuredClone(manifest);
+  const managedResources = new Set<string>();
+  const collect = (file: string) => {
+    if (managedResources.has(file)) return;
+    managedResources.add(file);
+    const chunk = bundle[file];
+    if (chunk?.type !== "chunk") return;
+    const metadata = (chunk as typeof chunk & { viteMetadata?: { importedCss?: Set<string>; importedAssets?: Set<string> } }).viteMetadata;
+    for (const dependency of [...(chunk.imports || []), ...(chunk.dynamicImports || []), ...(chunk.referencedFiles || []), ...(metadata?.importedCss || []), ...(metadata?.importedAssets || [])]) collect(dependency);
+  };
+  if (Array.isArray(snapshotManifest.content_scripts)) {
+    snapshotManifest.content_scripts.forEach((script, index) => {
+      if (!managedContent.has(index)) return;
+      for (const entry of [...(script.js || []), ...(script.css || [])]) collect(entry);
+      script.js = ["<content-hmr>"];
+      delete script.css;
+    });
+  }
+  if (Array.isArray(snapshotManifest.web_accessible_resources)) {
+    snapshotManifest.web_accessible_resources = snapshotManifest.web_accessible_resources.map((group) => ({
+      ...group,
+      resources: Array.isArray(group.resources) ? group.resources.filter((file: string) => !managedResources.has(file)) : group.resources,
+    })).filter((group) => group.resources?.length);
+  }
   const files = new Map<string, string | Uint8Array>();
   const visit = (file: string) => {
     if (files.has(file)) return;
@@ -161,7 +198,7 @@ export function extensionReloadSnapshot(manifest: Manifest, bundle: OutputBundle
     files.set(file, "");
     if (output?.type === "chunk") {
       files.set(file, output.code);
-      for (const dependency of [...output.imports, ...output.dynamicImports, ...output.referencedFiles]) visit(dependency);
+      for (const dependency of [...(output.imports || []), ...(output.dynamicImports || []), ...(output.referencedFiles || [])]) visit(dependency);
       const metadata = (output as typeof output & { viteMetadata?: { importedCss?: Set<string>; importedAssets?: Set<string> } }).viteMetadata;
       for (const dependency of [...(metadata?.importedCss || []), ...(metadata?.importedAssets || [])]) visit(dependency);
     } else if (output?.type === "asset") files.set(file, output.source);
@@ -170,11 +207,34 @@ export function extensionReloadSnapshot(manifest: Manifest, bundle: OutputBundle
   const background = manifest.background as { service_worker?: string } | undefined;
   if (background?.service_worker) visit(background.service_worker);
   if (Array.isArray(manifest.content_scripts)) {
-    for (const script of manifest.content_scripts) {
+    for (const [index, script] of manifest.content_scripts.entries()) {
+      if (managedContent.has(index)) continue;
       for (const entry of [...(script.js || []), ...(script.css || [])]) visit(entry);
     }
   }
-  const hash = createHash("sha256").update(JSON.stringify(manifest));
+  const hash = createHash("sha256").update(JSON.stringify(snapshotManifest));
+  for (const [file, source] of [...files].sort(([left], [right]) => left.localeCompare(right))) hash.update(file).update(source);
+  return hash.digest("hex");
+}
+
+/** Track extension pages separately so content updates leave them mounted. */
+function extensionPageSnapshot(bundle: OutputBundle): string {
+  const files = new Map<string, string | Uint8Array>();
+  const visit = (file: string) => {
+    if (files.has(file)) return;
+    const item = bundle[file];
+    if (!item) return;
+    files.set(file, item.type === "chunk" ? item.code : item.source);
+    if (item.type === "chunk") {
+      const metadata = (item as typeof item & { viteMetadata?: { importedCss?: Set<string>; importedAssets?: Set<string> } }).viteMetadata;
+      for (const dependency of [...(item.imports || []), ...(item.dynamicImports || []), ...(item.referencedFiles || []), ...(metadata?.importedCss || []), ...(metadata?.importedAssets || [])]) visit(dependency);
+    }
+  };
+  for (const item of Object.values(bundle)) {
+    if ((item.type === "asset" && item.fileName.endsWith(".html")) ||
+        (item.type === "chunk" && item.isEntry && item.facadeModuleId?.endsWith(".html"))) visit(item.fileName);
+  }
+  const hash = createHash("sha256");
   for (const [file, source] of [...files].sort(([left], [right]) => left.localeCompare(right))) hash.update(file).update(source);
   return hash.digest("hex");
 }
@@ -206,7 +266,8 @@ export function publishDevBuild(staging: string, destination: string): void {
 
 export function createDevOutputPlugin(
   connection: () => ReloadConnection,
-  snapshot?: (value: string) => void,
+  snapshot?: (value: string, entries?: ContentHmrEntry[], pages?: string) => void,
+  contentHmr = false,
 ): Plugin {
   let publicDir: string | false = false;
   let outputDir = "";
@@ -224,8 +285,15 @@ export function createDevOutputPlugin(
         throw new Error("[chrome-extension] Development build did not emit manifest.json.");
       }
       const manifest = JSON.parse(String(manifestAsset.source)) as Manifest;
-      snapshot?.(extensionReloadSnapshot(manifest, bundle, publicDir));
-      const current = connection();
+      const originalManifest = structuredClone(manifest);
+      const entries = contentHmr ? prepareContentHmr(
+        manifest, bundle, publicDir,
+        (fileName, source) => { this.emitFile({ type: "asset", fileName, source }); },
+        (message) => { this.warn(message); },
+      ) : undefined;
+      const runtimeSnapshot = extensionReloadSnapshot(originalManifest, bundle, publicDir, new Set(entries?.map((entry) => Number(entry.id.slice("content-".length)))));
+      snapshot?.(runtimeSnapshot, entries, extensionPageSnapshot(bundle));
+      const current = { ...connection(), ...(entries ? { contentScripts: entries, runtimeSnapshot } : {}) };
       const background = manifest.background as { service_worker?: string; type?: string } | undefined;
       const workerFile = background?.service_worker || DEV_WORKER_FILE;
       for (const reserved of [DEV_CLIENT_FILE, ...(!background?.service_worker ? [DEV_WORKER_FILE] : [])]) {
@@ -328,6 +396,9 @@ export async function configureExtensionDevServer(
   let restarting = Promise.resolve();
   let successfulSnapshot: string | undefined;
   let pendingSnapshots: string[] = [];
+  let pendingPageSnapshots: string[] = [];
+  let successfulPageSnapshot: string | undefined;
+  let successfulContentSnapshot: string | undefined;
   let forceExtensionReload = false;
   const sendState = (_data?: unknown, client?: { send(event: string, data: unknown): void }) => {
     if (!state.revision || state.building || state.error) return;
@@ -336,6 +407,9 @@ export async function configureExtensionDevServer(
       session: state.session,
       reloadExtension: state.reloadExtension,
       lastExtensionReloadRevision: state.lastExtensionReloadRevision,
+      contentScripts: state.contentScripts,
+      runtimeSnapshot: state.runtimeSnapshot,
+      contentOnly: state.contentOnly,
     };
     if (client) client.send(DEV_RELOAD_EVENT, payload);
     else server.ws.send(DEV_RELOAD_EVENT, payload);
@@ -372,7 +446,8 @@ export async function configureExtensionDevServer(
       mode: server.config.mode,
       plugins: [...plugins, createExtensionPlugin({ ...options, manifest, liveReload: false }), createDevOutputPlugin(
         () => resolveReloadConnection(server, state),
-        (value) => pendingSnapshots.push(value),
+        (value, entries, pages) => { pendingSnapshots.push(value); pendingPageSnapshots.push(pages || ""); state.contentScripts = entries; },
+        !Array.isArray(options.contentScripts) && options.contentScripts?.hmr === true && options.contentScripts.standalone !== false,
       )],
       build: {
         ...config.build,
@@ -396,7 +471,7 @@ export async function configureExtensionDevServer(
     watcher = result;
     watcher.on("event", (event) => {
       if (closed) return;
-      if (event.code === "START") { state.building = true; state.error = null; pendingSnapshots = []; }
+      if (event.code === "START") { state.building = true; state.error = null; pendingSnapshots = []; pendingPageSnapshots = []; }
       if (event.code === "ERROR") { state.building = false; state.error = event.error.message; }
       if (event.code === "END" && !state.error) {
         state.building = false;
@@ -408,8 +483,17 @@ export async function configureExtensionDevServer(
           return;
         }
         const snapshot = JSON.stringify(pendingSnapshots);
-        state.reloadExtension = forceExtensionReload || successfulSnapshot === undefined || successfulSnapshot !== snapshot;
+        state.runtimeSnapshot = pendingSnapshots.length === 1 ? pendingSnapshots[0] : snapshot;
+        const pages = JSON.stringify(pendingPageSnapshots);
+        const content = JSON.stringify(state.contentScripts);
+        const pagesChanged = successfulPageSnapshot !== pages;
+        const contentChanged = successfulContentSnapshot !== content;
+        state.reloadExtension = forceExtensionReload || successfulSnapshot === undefined || successfulSnapshot !== snapshot ||
+          (contentChanged && pagesChanged && successfulContentSnapshot !== undefined);
+        state.contentOnly = Boolean(state.contentScripts?.length) && contentChanged && !pagesChanged && !state.reloadExtension;
         successfulSnapshot = snapshot;
+        successfulPageSnapshot = pages;
+        successfulContentSnapshot = content;
         forceExtensionReload = false;
         state.revision += 1;
         if (state.reloadExtension) state.lastExtensionReloadRevision = state.revision;
